@@ -95,20 +95,20 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _openExistingProject() async {
-    final result = await FilePicker.platform.getDirectoryPath(
+    final result = await FilePicker.getDirectoryPath(
       dialogTitle: 'Select project folder',
     );
     if (result != null) _openProject(result);
   }
 
   Future<void> _importZip() async {
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['zip'],
     );
-    if (result == null || result.files.single.path == null) return;
+    if (result.isEmpty || result.single.path == null) return;
 
-    final zipFile = File(result.files.single.path!);
+    final zipFile = File(result.single.path!);
     final projectsDir = await FileService.workspaceProjectsDir();
     final targetName = p.basenameWithoutExtension(zipFile.path);
     final targetDir = Directory(p.join(projectsDir.path, targetName));
