@@ -3,7 +3,6 @@ import 'package:path/path.dart' as p;
 import '../models/process_result.dart';
 import '../models/toolchain_info.dart';
 import '../core/runtime/process_executor.dart';
-import '../core/runtime/environment_manager.dart';
 
 class ToolchainValidationResult {
   final ToolchainKind kind;

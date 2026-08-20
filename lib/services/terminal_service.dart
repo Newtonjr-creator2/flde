@@ -24,9 +24,9 @@ class TerminalService {
       );
       if (await candidate.exists()) {
         _workingDirectory = candidate.absolute.path;
-        yield 'Changed directory to $_workingDirectory';
+        yield ProcessLine('Changed directory to $_workingDirectory');
       } else {
-        yield 'cd: no such directory: $target';
+        yield ProcessLine('cd: no such directory: $target', isError: true);
       }
       return;
     }

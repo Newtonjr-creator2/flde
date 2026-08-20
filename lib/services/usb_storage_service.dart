@@ -16,8 +16,8 @@ class UsbStorageService {
       type: FileType.custom,
       allowedExtensions: ['zip'],
     );
-    if (result == null || result.files.isEmpty) return null;
-    return result.files.single.path;
+    if (result.isEmpty) return null;
+    return result.single.path;
   }
 
   Future<Directory> importDirectory(String sourcePath) async {
