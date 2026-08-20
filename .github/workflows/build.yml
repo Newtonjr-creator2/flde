@@ -21,21 +21,31 @@ jobs:
             flutter create --org com.vyomquantum --project-name real_buzzing_identifier .
           fi
 
-      - name: Patch compileSdk to 36 (file_picker requires >= 36)
+      - name: Force compileSdk 36 on ALL Android subprojects (app + every plugin)
         run: |
-          FILE=android/app/build.gradle.kts
-          if [ ! -f "$FILE" ]; then FILE=android/app/build.gradle; fi
-          echo "Target file: $FILE"
-          echo "--- before ---"
-          grep -in "compileSdk" "$FILE" || echo "(no compileSdk line found — template may use a different key)"
+          FILE=android/build.gradle.kts
+          echo "--- android/build.gradle.kts before ---"
+          cat "$FILE"
 
-          # Kotlin DSL: "compileSdk = <anything>"  ->  "compileSdk = 36"
-          sed -i -E 's/^([[:space:]]*)compileSdk([[:space:]]*=[[:space:]]*).*/\1compileSdk = 36/' "$FILE"
-          # Groovy DSL: "compileSdkVersion <anything>" -> "compileSdkVersion 36"
-          sed -i -E 's/^([[:space:]]*)compileSdkVersion[[:space:]]+.*/\1compileSdkVersion 36/' "$FILE"
+          cat >> "$FILE" << 'EOF'
 
-          echo "--- after ---"
-          grep -in "compileSdk" "$FILE"
+          // Force every Android module (the app AND every Flutter plugin,
+          // e.g. file_picker) to compile against SDK 36. Plugin modules
+          // read their own default from the bundled Flutter Gradle plugin
+          // and ignore the app-level compileSdk setting, so this override
+          // has to be applied at the subprojects level to actually take
+          // effect on them.
+          subprojects {
+              afterEvaluate {
+                  extensions.findByType(com.android.build.gradle.BaseExtension::class.java)?.let { android ->
+                      android.compileSdkVersion(36)
+                  }
+              }
+          }
+          EOF
+
+          echo "--- android/build.gradle.kts after ---"
+          cat "$FILE"
 
       - run: flutter pub get
       - run: flutter analyze || true
