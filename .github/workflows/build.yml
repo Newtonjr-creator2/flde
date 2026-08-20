@@ -21,35 +21,6 @@ jobs:
             flutter create --org com.vyomquantum --project-name real_buzzing_identifier .
           fi
 
-      - name: Force compileSdk 36 on ALL Android subprojects (app + every plugin)
-        run: |
-          FILE=android/build.gradle.kts
-          echo "--- android/build.gradle.kts before ---"
-          cat "$FILE"
-
-          cat >> "$FILE" << 'EOF'
-
-          // Force every Android module (the app AND every Flutter plugin,
-          // e.g. file_picker) to compile against SDK 36. Uses plugins.withId
-          // instead of afterEvaluate — fires as soon as the AGP plugin is
-          // applied, so it can't race against the project's own evaluation.
-          subprojects {
-              plugins.withId("com.android.library") {
-                  extensions.configure<com.android.build.gradle.LibraryExtension> {
-                      compileSdk = 36
-                  }
-              }
-              plugins.withId("com.android.application") {
-                  extensions.configure<com.android.build.gradle.BaseAppModuleExtension> {
-                      compileSdk = 36
-                  }
-              }
-          }
-          EOF
-
-          echo "--- android/build.gradle.kts after ---"
-          cat "$FILE"
-
       - run: flutter pub get
       - run: flutter analyze || true
       - run: flutter build apk --debug
