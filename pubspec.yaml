@@ -1,3 +1,4 @@
+
 name: real_buzzing_identifier
 description: Mobile-first Flutter/Dart IDE for Android — Phase 1 (explorer + editor)
 publish_to: 'none'
@@ -18,7 +19,10 @@ dependencies:
 
   # Storage Access Framework — lets the user pick a real folder on internal
   # storage / SD card / USB OTG to open as a project (spec section 23).
-  file_picker: ^8.1.4
+  # Bumped from 8.x because that AAR was compiled against compileSdk 34,
+  # which fails flutter_plugin_android_lifecycle's SDK 36 requirement on
+  # current Flutter/AGP. 12.0.0 was confirmed available in the build log.
+  file_picker: ^12.0.0
 
   # Real ZIP extraction for "Import Project from ZIP" (spec section 5/78).
   archive: ^3.6.1
