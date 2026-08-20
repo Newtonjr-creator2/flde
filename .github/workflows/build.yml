@@ -32,9 +32,17 @@ jobs:
           flutter doctor -v
 
       - name: Install Android SDK 36
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android API 36
         run: |
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager "platforms;android-36" "build-tools;36.0.0"
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
+            "platforms;android-36" \
+            "build-tools;36.0.0"
+
+      - name: Accept Android licenses
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
       - name: Generate Android platform
         run: |
@@ -45,26 +53,25 @@ jobs:
               .
           fi
 
-      - name: Configure Android compile SDK 36
+      - name: Configure compileSdk 36
         run: |
           python3 <<'PY'
           from pathlib import Path
 
-          candidates = [
+          files = [
               Path("android/app/build.gradle"),
               Path("android/app/build.gradle.kts"),
           ]
 
           found = False
 
-          for file in candidates:
+          for file in files:
               if not file.exists():
                   continue
 
               found = True
               text = file.read_text()
 
-              # Groovy Flutter template
               text = text.replace(
                   "compileSdk = flutter.compileSdkVersion",
                   "compileSdk = 36"
@@ -75,34 +82,28 @@ jobs:
                   "compileSdk 36"
               )
 
-              # Kotlin DSL Flutter template
-              text = text.replace(
-                  "compileSdk = flutter.compileSdkVersion",
-                  "compileSdk = 36"
-              )
-
               file.write_text(text)
-
               print(f"Updated {file}")
 
           if not found:
-              raise SystemExit("ERROR: Could not find Android app Gradle file.")
-
+              raise SystemExit(
+                  "ERROR: Android app Gradle file was not generated."
+              )
           PY
 
-      - name: Verify compile SDK
+      - name: Verify Android configuration
         run: |
-          echo "Android Gradle configuration:"
+          echo "=== compileSdk ==="
           grep -R "compileSdk" android || true
 
-          echo ""
-          echo "Installed Android platforms:"
-          sdkmanager --list_installed | grep "platforms;android" || true
+          echo "=== Android SDK ==="
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --list_installed \
+            | grep "platforms;android" || true
 
-      - name: Get Flutter dependencies
+      - name: Get dependencies
         run: flutter pub get
 
-      - name: Analyze Flutter project
+      - name: Analyze
         run: flutter analyze
         continue-on-error: true
 
@@ -121,10 +122,9 @@ jobs:
             exit 1
           fi
 
-          echo "APK successfully generated:"
           ls -lh "$APK"
 
-      - name: Upload debug APK
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: realbuzzingidentifier-debug-apk
