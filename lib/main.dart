@@ -2,16 +2,17 @@ import 'package:flutter/material.dart';
 import 'screens/home_screen.dart';
 
 void main() {
-  runApp(const RealBuzzingIdeApp());
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(const FldeApp());
 }
 
-class RealBuzzingIdeApp extends StatelessWidget {
-  const RealBuzzingIdeApp({super.key});
+class FldeApp extends StatelessWidget {
+  const FldeApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'RealBuzzingIdentifier',
+      title: 'FLDE',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         brightness: Brightness.dark,
@@ -25,6 +26,7 @@ class RealBuzzingIdeApp extends StatelessWidget {
           elevation: 0,
         ),
         fontFamily: 'monospace',
+        useMaterial3: true,
       ),
       home: const HomeScreen(),
     );

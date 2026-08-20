@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:archive/archive.dart';
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
+import '../core/storage/storage_service.dart';
 
 /// Real filesystem operations against the device's storage.
 /// Every method here performs an actual dart:io call — nothing is simulated.
@@ -9,12 +9,7 @@ class FileService {
   /// The IDE's own sandboxed workspace, used for projects created inside
   /// the app (spec section 24 — Full Project Sandbox).
   static Future<Directory> workspaceProjectsDir() async {
-    final appDir = await getApplicationDocumentsDirectory();
-    final projectsDir = Directory(p.join(appDir.path, 'RealBuzzingIDE', 'Projects'));
-    if (!await projectsDir.exists()) {
-      await projectsDir.create(recursive: true);
-    }
-    return projectsDir;
+    return (await StorageService.initialize()).projects;
   }
 
   static Future<List<FileSystemEntity>> listDir(String dirPath) async {
@@ -108,8 +103,13 @@ class FileService {
   static Future<Directory> importZip(File zipFile, Directory destination) async {
     final bytes = await zipFile.readAsBytes();
     final archive = ZipDecoder().decodeBytes(bytes);
+    final destinationRoot = p.normalize(destination.absolute.path);
     for (final entry in archive) {
-      final outPath = p.join(destination.path, entry.name);
+      final relative = p.normalize(entry.name.replaceAll('\\', p.separator));
+      final outPath = p.normalize(p.join(destinationRoot, relative));
+      if (outPath != destinationRoot && !p.isWithin(destinationRoot, outPath)) {
+        throw StateError('Unsafe ZIP entry rejected: ${entry.name}');
+      }
       if (entry.isFile) {
         final outFile = File(outPath);
         await outFile.parent.create(recursive: true);

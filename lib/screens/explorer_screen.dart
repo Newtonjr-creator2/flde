@@ -4,6 +4,8 @@ import 'package:path/path.dart' as p;
 
 import '../services/file_service.dart';
 import 'editor_screen.dart';
+import 'terminal_screen.dart';
+import 'project_run_screen.dart';
 
 class ExplorerScreen extends StatefulWidget {
   final String rootPath;
@@ -161,6 +163,26 @@ class _ExplorerScreenState extends State<ExplorerScreen> {
         actions: [
           IconButton(icon: const Icon(Icons.note_add_outlined), onPressed: _newFile, tooltip: 'New file'),
           IconButton(icon: const Icon(Icons.create_new_folder_outlined), onPressed: _newFolder, tooltip: 'New folder'),
+          IconButton(
+            icon: const Icon(Icons.play_arrow),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ProjectRunScreen(projectPath: widget.rootPath),
+              ),
+            ),
+            tooltip: 'Run project',
+          ),
+          IconButton(
+            icon: const Icon(Icons.terminal),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => TerminalScreen(workingDirectory: widget.rootPath),
+              ),
+            ),
+            tooltip: 'Terminal',
+          ),
           IconButton(icon: const Icon(Icons.refresh), onPressed: _refresh, tooltip: 'Refresh'),
         ],
       ),
