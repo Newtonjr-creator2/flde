@@ -21,15 +21,21 @@ jobs:
             flutter create --org com.vyomquantum --project-name real_buzzing_identifier .
           fi
 
-      - name: Patch compileSdk (file_picker requires >= 36)
+      - name: Patch compileSdk to 36 (file_picker requires >= 36)
         run: |
           FILE=android/app/build.gradle.kts
           if [ ! -f "$FILE" ]; then FILE=android/app/build.gradle; fi
-          echo "Patching $FILE"
-          sed -i 's/compileSdk = flutter.compileSdkVersion/compileSdk = 36/' "$FILE" || true
-          sed -i 's/compileSdkVersion flutter.compileSdkVersion/compileSdkVersion 36/' "$FILE" || true
-          sed -i 's/compileSdk flutter.compileSdkVersion/compileSdk 36/' "$FILE" || true
-          grep -i compileSdk "$FILE"
+          echo "Target file: $FILE"
+          echo "--- before ---"
+          grep -in "compileSdk" "$FILE" || echo "(no compileSdk line found — template may use a different key)"
+
+          # Kotlin DSL: "compileSdk = <anything>"  ->  "compileSdk = 36"
+          sed -i -E 's/^([[:space:]]*)compileSdk([[:space:]]*=[[:space:]]*).*/\1compileSdk = 36/' "$FILE"
+          # Groovy DSL: "compileSdkVersion <anything>" -> "compileSdkVersion 36"
+          sed -i -E 's/^([[:space:]]*)compileSdkVersion[[:space:]]+.*/\1compileSdkVersion 36/' "$FILE"
+
+          echo "--- after ---"
+          grep -in "compileSdk" "$FILE"
 
       - run: flutter pub get
       - run: flutter analyze || true
