@@ -1,132 +1,41 @@
-name: Build RealBuzzingIdentifier APK
+name: Build APK
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   workflow_dispatch:
-
-permissions:
-  contents: read
 
 jobs:
   build:
-    name: Build Debug APK
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
         with:
-          fetch-depth: 1
+          channel: 'stable'
 
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          cache: true
-
-      - name: Show Flutter environment
-        run: |
-          flutter --version
-          flutter doctor -v
-
-      - name: Install Android SDK 36
-        uses: android-actions/setup-android@v3
-
-      - name: Install Android API 36
-        run: |
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
-            "platforms;android-36" \
-            "build-tools;36.0.0"
-
-      - name: Accept Android licenses
-        run: |
-          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
-
-      - name: Generate Android platform
+      - name: flutter create platform folders (first run only)
         run: |
           if [ ! -d "android" ]; then
-            flutter create \
-              --org com.vyomquantum \
-              --project-name real_buzzing_identifier \
-              .
+            flutter create --org com.vyomquantum --project-name real_buzzing_identifier .
           fi
 
-      - name: Configure compileSdk 36
+      - name: Patch compileSdk (file_picker requires >= 36)
         run: |
-          python3 <<'PY'
-          from pathlib import Path
+          FILE=android/app/build.gradle.kts
+          if [ ! -f "$FILE" ]; then FILE=android/app/build.gradle; fi
+          echo "Patching $FILE"
+          sed -i 's/compileSdk = flutter.compileSdkVersion/compileSdk = 36/' "$FILE" || true
+          sed -i 's/compileSdkVersion flutter.compileSdkVersion/compileSdkVersion 36/' "$FILE" || true
+          sed -i 's/compileSdk flutter.compileSdkVersion/compileSdk 36/' "$FILE" || true
+          grep -i compileSdk "$FILE"
 
-          files = [
-              Path("android/app/build.gradle"),
-              Path("android/app/build.gradle.kts"),
-          ]
+      - run: flutter pub get
+      - run: flutter analyze || true
+      - run: flutter build apk --debug
 
-          found = False
-
-          for file in files:
-              if not file.exists():
-                  continue
-
-              found = True
-              text = file.read_text()
-
-              text = text.replace(
-                  "compileSdk = flutter.compileSdkVersion",
-                  "compileSdk = 36"
-              )
-
-              text = text.replace(
-                  "compileSdk flutter.compileSdkVersion",
-                  "compileSdk 36"
-              )
-
-              file.write_text(text)
-              print(f"Updated {file}")
-
-          if not found:
-              raise SystemExit(
-                  "ERROR: Android app Gradle file was not generated."
-              )
-          PY
-
-      - name: Verify Android configuration
-        run: |
-          echo "=== compileSdk ==="
-          grep -R "compileSdk" android || true
-
-          echo "=== Android SDK ==="
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --list_installed \
-            | grep "platforms;android" || true
-
-      - name: Get dependencies
-        run: flutter pub get
-
-      - name: Analyze
-        run: flutter analyze
-        continue-on-error: true
-
-      - name: Build debug APK
-        run: |
-          flutter clean
-          flutter pub get
-          flutter build apk --debug
-
-      - name: Verify APK
-        run: |
-          APK="build/app/outputs/flutter-apk/app-debug.apk"
-
-          if [ ! -f "$APK" ]; then
-            echo "ERROR: APK was not generated."
-            exit 1
-          fi
-
-          ls -lh "$APK"
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: realbuzzingidentifier-debug-apk
+          name: app-debug-apk
           path: build/app/outputs/flutter-apk/app-debug.apk
-          if-no-files-found: error
