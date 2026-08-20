@@ -8,24 +8,74 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - uses: subosito/flutter-action@v2
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
         with:
-          channel: 'stable'
+          channel: stable
+          cache: true
 
-      - name: flutter create platform folders (first run only)
+      - name: Create Flutter platform folders
         run: |
           if [ ! -d "android" ]; then
-            flutter create --org com.vyomquantum --project-name real_buzzing_identifier .
+            flutter create \
+              --org com.vyomquantum \
+              --project-name real_buzzing_identifier \
+              .
           fi
 
-      - run: flutter pub get
-      - run: flutter analyze || true
-      - run: flutter build apk --debug
+      - name: Set Android compile SDK
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
 
-      - uses: actions/upload-artifact@v4
+          gradle_file = Path("android/app/build.gradle")
+
+          if gradle_file.exists():
+              text = gradle_file.read_text()
+
+              text = text.replace(
+                  "compileSdk = flutter.compileSdkVersion",
+                  "compileSdk = 36"
+              )
+
+              text = text.replace(
+                  "compileSdk flutter.compileSdkVersion",
+                  "compileSdk 36"
+              )
+
+              gradle_file.write_text(text)
+
+          properties_file = Path("android/gradle.properties")
+
+          if properties_file.exists():
+              text = properties_file.read_text()
+              if "android.suppressUnsupportedCompileSdk=36" not in text:
+                  text += "\nandroid.suppressUnsupportedCompileSdk=36\n"
+              properties_file.write_text(text)
+          PY
+
+      - name: Verify Android configuration
+        run: |
+          grep -R "compileSdk" android/app
+          flutter doctor -v
+          flutter --version
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze || true
+
+      - name: Build debug APK
+        run: flutter build apk --debug
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
         with:
           name: app-debug-apk
           path: build/app/outputs/flutter-apk/app-debug.apk
