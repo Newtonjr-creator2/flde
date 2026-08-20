@@ -30,15 +30,18 @@ jobs:
           cat >> "$FILE" << 'EOF'
 
           // Force every Android module (the app AND every Flutter plugin,
-          // e.g. file_picker) to compile against SDK 36. Plugin modules
-          // read their own default from the bundled Flutter Gradle plugin
-          // and ignore the app-level compileSdk setting, so this override
-          // has to be applied at the subprojects level to actually take
-          // effect on them.
+          // e.g. file_picker) to compile against SDK 36. Uses plugins.withId
+          // instead of afterEvaluate — fires as soon as the AGP plugin is
+          // applied, so it can't race against the project's own evaluation.
           subprojects {
-              afterEvaluate {
-                  extensions.findByType(com.android.build.gradle.BaseExtension::class.java)?.let { android ->
-                      android.compileSdkVersion(36)
+              plugins.withId("com.android.library") {
+                  extensions.configure<com.android.build.gradle.LibraryExtension> {
+                      compileSdk = 36
+                  }
+              }
+              plugins.withId("com.android.application") {
+                  extensions.configure<com.android.build.gradle.BaseAppModuleExtension> {
+                      compileSdk = 36
                   }
               }
           }
