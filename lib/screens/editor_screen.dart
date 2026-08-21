@@ -105,10 +105,11 @@ class _EditorScreenState extends State<EditorScreen> {
       canPop: !_dirty,
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
+        final navigator = Navigator.of(context);
         final discard = await _confirmDiscardIfDirty();
         if (!mounted) return;
         if (discard) {
-          Navigator.pop(context);
+          navigator.pop();
         }
       },
       child: Scaffold(
