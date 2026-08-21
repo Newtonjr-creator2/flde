@@ -42,11 +42,6 @@ void main() {
       );
       expect(entry.hasSource, isFalse);
     });
-
-    test('an empty manifest array parses to an empty list, not an error', () {
-      final decoded = ToolchainManifestEntry.fromJson;
-      expect(decoded, isNotNull);
-    });
   });
 
   group('ToolchainManifestLoader', () {
@@ -73,4 +68,5 @@ void main() {
       expect(entries, isEmpty);
       await tempDir.delete(recursive: true);
     });
+  });
 }
