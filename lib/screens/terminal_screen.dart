@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../core/runtime/environment_manager.dart';
+import '../core/runtime/native_runtime_environment.dart';
 import '../core/storage/storage_service.dart';
 import '../services/terminal_service.dart';
 
@@ -27,8 +28,10 @@ class _TerminalScreenState extends State<TerminalScreen> {
   Future<void> _init() async {
     final storage = await StorageService.instance();
     final environment = EnvironmentManager(storage);
+    final runtime = NativeRuntimeEnvironment();
     final session = TerminalSession(
       environment: environment,
+      runtime: runtime,
       workingDirectory: widget.initialDirectory ?? storage.projectsDir.path,
     );
     session.onEntry.listen((entry) {

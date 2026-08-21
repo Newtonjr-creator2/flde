@@ -2,6 +2,7 @@ import 'dart:async';
 
 import '../core/runtime/environment_manager.dart';
 import '../core/runtime/process_executor.dart';
+import '../core/runtime/runtime_environment.dart';
 
 class TerminalHistoryEntry {
   final String commandLine;
@@ -18,14 +19,20 @@ class TerminalHistoryEntry {
 /// installs when present), and a history of commands that actually ran.
 /// Nothing here echoes back canned text — every entry in [history] is the
 /// captured output of a genuine process.
+///
+/// Per Phase 2B spec section 7, this goes through a [RuntimeEnvironment]
+/// rather than calling ProcessExecutor directly — today that's
+/// [NativeRuntimeEnvironment] (direct exec, no PRoot/VM), but nothing else
+/// in this class needs to know that.
 class TerminalSession {
   final EnvironmentManager environment;
+  final RuntimeEnvironment runtime;
   String workingDirectory;
   final List<TerminalHistoryEntry> history = [];
   final _outputController = StreamController<TerminalHistoryEntry>.broadcast();
   RunningProcess? _current;
 
-  TerminalSession({required this.environment, required this.workingDirectory});
+  TerminalSession({required this.environment, required this.runtime, required this.workingDirectory});
 
   Stream<TerminalHistoryEntry> get onEntry => _outputController.stream;
 
@@ -46,10 +53,10 @@ class TerminalSession {
       return;
     }
 
-    final env = await environment.buildEnvironment();
+    final env = await environment.buildEnvironmentForProject(workingDirectory);
     final collected = <ProcessOutputLine>[];
     try {
-      final running = await ProcessExecutor.start(
+      final running = await runtime.start(
         executable,
         args,
         workingDirectory: workingDirectory,
@@ -118,12 +125,13 @@ class TerminalSession {
 /// Owns all open terminal tabs.
 class TerminalService {
   final EnvironmentManager environment;
+  final RuntimeEnvironment runtime;
   final List<TerminalSession> sessions = [];
 
-  TerminalService(this.environment);
+  TerminalService(this.environment, this.runtime);
 
   TerminalSession newSession(String workingDirectory) {
-    final session = TerminalSession(environment: environment, workingDirectory: workingDirectory);
+    final session = TerminalSession(environment: environment, runtime: runtime, workingDirectory: workingDirectory);
     sessions.add(session);
     return session;
   }

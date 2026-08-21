@@ -6,12 +6,14 @@ import 'package:path_provider/path_provider.dart';
 /// assumed — it's resolved at runtime via path_provider, per spec section 2.
 ///
 /// FLDE/
+///   runtime/{root,bin,lib,etc,tmp,home,usr}/
 ///   toolchains/{dart,flutter,java,gradle,android-sdk}/<version>/
 ///   pub-cache/
 ///   gradle-cache/
 ///   projects/
 ///   downloads/
 ///   temp/
+///   logs/
 class StorageService {
   static StorageService? _instance;
   final Directory root;
@@ -23,6 +25,13 @@ class StorageService {
     final appDir = await getApplicationDocumentsDirectory();
     final root = Directory(p.join(appDir.path, 'FLDE'));
     for (final sub in [
+      'runtime/root',
+      'runtime/bin',
+      'runtime/lib',
+      'runtime/etc',
+      'runtime/tmp',
+      'runtime/home',
+      'runtime/usr',
       'toolchains/dart',
       'toolchains/flutter',
       'toolchains/java',
@@ -33,12 +42,19 @@ class StorageService {
       'projects',
       'downloads',
       'temp',
+      'logs',
     ]) {
       await Directory(p.join(root.path, sub)).create(recursive: true);
     }
     _instance = StorageService._(root);
     return _instance!;
   }
+
+  Directory get runtimeDir => Directory(p.join(root.path, 'runtime'));
+  Directory get runtimeBinDir => Directory(p.join(root.path, 'runtime', 'bin'));
+  Directory get runtimeHomeDir => Directory(p.join(root.path, 'runtime', 'home'));
+  Directory get runtimeTmpDir => Directory(p.join(root.path, 'runtime', 'tmp'));
+  Directory get logsDir => Directory(p.join(root.path, 'logs'));
 
   Directory get toolchainsDir => Directory(p.join(root.path, 'toolchains'));
   Directory toolchainDir(String kindName) => Directory(p.join(root.path, 'toolchains', kindName));

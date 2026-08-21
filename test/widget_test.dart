@@ -2,7 +2,13 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:real_buzzing_identifier/main.dart';
 
+import 'test_helpers.dart';
+
 void main() {
+  setUp(() async {
+    await mockPathProvider();
+  });
+
   testWidgets('App launches and shows the home screen', (WidgetTester tester) async {
     await tester.pumpWidget(const RealBuzzingIdeApp());
     await tester.pumpAndSettle();

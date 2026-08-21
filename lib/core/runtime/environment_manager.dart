@@ -102,6 +102,10 @@ class EnvironmentManager {
   /// toolchain's bin/ directory first, plus pub-cache/gradle-cache vars
   /// pointed at FLDE's own storage so tools don't fall back to
   /// unpredictable device-default locations.
+  ///
+  /// Per Phase 2B spec section 8: only ever sets a tool-specific path
+  /// (ANDROID_HOME, JAVA_HOME, ...) when that toolchain is actually
+  /// resolved — never injects a path for something that doesn't exist.
   Future<Map<String, String>> buildEnvironment() async {
     final env = Map<String, String>.from(Platform.environment);
     final existingPath = env['PATH'] ?? '';
@@ -114,9 +118,47 @@ class EnvironmentManager {
       }
     }
 
-    env['PATH'] = [...fldeBinDirs, existingPath].where((s) => s.isNotEmpty).join(':');
+    env['PATH'] = [storage.runtimeBinDir.path, ...fldeBinDirs, existingPath]
+        .where((s) => s.isNotEmpty)
+        .join(':');
+    env['HOME'] = storage.runtimeHomeDir.path;
+    env['TMPDIR'] = storage.runtimeTmpDir.path;
+    env['LANG'] = env['LANG'] ?? 'en_US.UTF-8';
+    env['TERM'] = env['TERM'] ?? 'xterm-256color';
+    env['FLDE_HOME'] = storage.root.path;
+    env['FLDE_RUNTIME'] = storage.runtimeDir.path;
     env['PUB_CACHE'] = storage.pubCacheDir.path;
     env['GRADLE_USER_HOME'] = storage.gradleCacheDir.path;
+
+    final java = await resolve(ToolchainKind.java);
+    if (java != null && java.origin == ToolchainOrigin.flde && java.installRoot != null) {
+      env['JAVA_HOME'] = java.installRoot!;
+    }
+
+    final androidSdkDir = storage.toolchainDir('android-sdk');
+    bool androidSdkHasContent = false;
+    if (await androidSdkDir.exists()) {
+      try {
+        androidSdkHasContent = await androidSdkDir.list().isEmpty.then((empty) => !empty);
+      } catch (_) {
+        androidSdkHasContent = false;
+      }
+    }
+    if (androidSdkHasContent) {
+      env['ANDROID_HOME'] = androidSdkDir.path;
+      env['ANDROID_SDK_ROOT'] = androidSdkDir.path;
+    }
+
+    return env;
+  }
+
+  /// Sets FLDE_PROJECT for a specific execution context (a project run,
+  /// build, or terminal session cd'd into a project). Kept separate from
+  /// [buildEnvironment] because "current project" is a per-session
+  /// concept, not a global one.
+  Future<Map<String, String>> buildEnvironmentForProject(String projectDirectory) async {
+    final env = await buildEnvironment();
+    env['FLDE_PROJECT'] = projectDirectory;
     return env;
   }
 }

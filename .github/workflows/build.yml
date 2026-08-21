@@ -29,7 +29,8 @@ jobs:
       - name: Analyze (real errors are NOT hidden — a failure here must fail the build)
         run: flutter analyze
 
-      - run: flutter test || true # non-blocking for now; widget test coverage is still thin
+      - name: Test (real errors are NOT hidden — a failure here must fail the build)
+        run: flutter test
 
       - run: flutter build apk --debug
 

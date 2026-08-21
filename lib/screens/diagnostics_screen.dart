@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../core/diagnostics/diagnostics_service.dart';
 import '../core/networking/connectivity_service.dart';
+import '../core/runtime/native_runtime_environment.dart';
+import '../core/runtime/runtime_diagnostics_service.dart';
+import '../core/storage/storage_service.dart';
 import '../models/toolchain_info.dart';
 import '../services/toolchain_manager.dart';
 
@@ -14,6 +17,7 @@ class DiagnosticsScreen extends StatefulWidget {
 
 class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
   DiagnosticsReport? _report;
+  RuntimeDiagnosticsReport? _runtimeReport;
   bool _running = false;
 
   @override
@@ -27,9 +31,15 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
     final manager = await ToolchainManager.create();
     final service = DiagnosticsService(manager);
     final report = await service.runFullDiagnostics();
+
+    final storage = await StorageService.instance();
+    final runtimeService = RuntimeDiagnosticsService(storage, NativeRuntimeEnvironment());
+    final runtimeReport = await runtimeService.run();
+
     if (!mounted) return;
     setState(() {
       _report = report;
+      _runtimeReport = runtimeReport;
       _running = false;
     });
   }
@@ -53,6 +63,9 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
                 const SizedBox(height: 16),
                 const _Header('Toolchains'),
                 for (final kind in ToolchainKind.values) _toolchainRow(report.toolchains[kind]),
+                const SizedBox(height: 16),
+                const _Header('FLDE Runtime (experimental)'),
+                if (_runtimeReport != null) ..._runtimeSection(_runtimeReport!),
                 const SizedBox(height: 24),
                 FilledButton.icon(
                   onPressed: _running ? null : _run,
@@ -91,6 +104,44 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
             for (final blocker in report.offlineBlockers)
               Text('• $blocker', style: const TextStyle(fontSize: 12)),
           ],
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _runtimeSection(RuntimeDiagnosticsReport r) {
+    return [
+      _kv('Kernel', r.kernelVersion ?? 'Unable to read /proc/version or `uname -r`'),
+      _kv('Runtime strategy', 'Native direct exec (no PRoot/VM) — see ARCHITECTURE.md'),
+      _kv('Shell resolved', r.resolvedShell ?? 'None found'),
+      const SizedBox(height: 8),
+      for (final check in r.checks) _checkRow(check),
+    ];
+  }
+
+  Widget _checkRow(RuntimeCheck check) {
+    final (icon, color) = switch (check.status) {
+      CheckStatus.verified => (Icons.check_circle, Colors.greenAccent),
+      CheckStatus.unverified => (Icons.help_outline, Colors.orangeAccent),
+      CheckStatus.failed => (Icons.cancel, Colors.redAccent),
+      CheckStatus.unavailable => (Icons.remove_circle_outline, Colors.grey),
+    };
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(check.label, style: const TextStyle(fontSize: 13)),
+                Text(check.detail, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+              ],
+            ),
+          ),
         ],
       ),
     );

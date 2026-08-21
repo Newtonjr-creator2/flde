@@ -18,8 +18,10 @@ class ToolchainManifestEntry {
   final String? downloadUrl;
   final String? sha256;
   final int? sizeBytes;
+  final String? archiveType; // e.g. "zip", "tar.gz" — explicit, never inferred from a guessed URL
   final List<ToolchainKind> dependencies;
   final String? minimumFldeVersion;
+  final RuntimeRequirements? runtimeRequirements;
 
   const ToolchainManifestEntry({
     required this.kind,
@@ -29,8 +31,10 @@ class ToolchainManifestEntry {
     this.downloadUrl,
     this.sha256,
     this.sizeBytes,
+    this.archiveType,
     this.dependencies = const [],
     this.minimumFldeVersion,
+    this.runtimeRequirements,
   });
 
   /// True only when this entry actually has somewhere to download from.
@@ -47,11 +51,15 @@ class ToolchainManifestEntry {
       downloadUrl: json['downloadUrl'] as String?,
       sha256: json['sha256'] as String?,
       sizeBytes: json['sizeBytes'] as int?,
+      archiveType: json['archiveType'] as String?,
       dependencies: (json['dependencies'] as List?)
               ?.map((d) => ToolchainKind.values.firstWhere((k) => k.name == d))
               .toList() ??
           const [],
       minimumFldeVersion: json['minimumFldeVersion'] as String?,
+      runtimeRequirements: json['runtimeRequirements'] != null
+          ? RuntimeRequirements.fromJson(json['runtimeRequirements'] as Map<String, dynamic>)
+          : null,
     );
   }
 
@@ -63,8 +71,40 @@ class ToolchainManifestEntry {
         if (downloadUrl != null) 'downloadUrl': downloadUrl,
         if (sha256 != null) 'sha256': sha256,
         if (sizeBytes != null) 'sizeBytes': sizeBytes,
+        if (archiveType != null) 'archiveType': archiveType,
         'dependencies': dependencies.map((d) => d.name).toList(),
         if (minimumFldeVersion != null) 'minimumFldeVersion': minimumFldeVersion,
+        if (runtimeRequirements != null) 'runtimeRequirements': runtimeRequirements!.toJson(),
+      };
+}
+
+/// Declares what a manifest entry needs from the runtime in order to
+/// actually work — e.g. whether it requires direct-exec-from-private-
+/// storage capability (see RuntimeDiagnosticsService). ToolchainManager
+/// can use this to reject an install up front on a device where the
+/// required capability was already tested and found unavailable, rather
+/// than downloading gigabytes only to discover the binary can't run.
+class RuntimeRequirements {
+  final bool requiresDirectExecFromPrivateStorage;
+  final String? minimumAndroidVersion;
+  final List<String> supportedAbis;
+
+  const RuntimeRequirements({
+    this.requiresDirectExecFromPrivateStorage = true,
+    this.minimumAndroidVersion,
+    this.supportedAbis = const [],
+  });
+
+  factory RuntimeRequirements.fromJson(Map<String, dynamic> json) => RuntimeRequirements(
+        requiresDirectExecFromPrivateStorage: json['requiresDirectExecFromPrivateStorage'] as bool? ?? true,
+        minimumAndroidVersion: json['minimumAndroidVersion'] as String?,
+        supportedAbis: (json['supportedAbis'] as List?)?.cast<String>() ?? const [],
+      );
+
+  Map<String, dynamic> toJson() => {
+        'requiresDirectExecFromPrivateStorage': requiresDirectExecFromPrivateStorage,
+        if (minimumAndroidVersion != null) 'minimumAndroidVersion': minimumAndroidVersion,
+        'supportedAbis': supportedAbis,
       };
 }
 
