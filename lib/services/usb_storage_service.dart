@@ -35,9 +35,12 @@ class UsbStorageService {
 
   Future<ImportResult> pickAndImportZip() async {
     final result = await FilePicker.pickFiles(type: FileType.custom, allowedExtensions: ['zip']);
-    final path = result?.files.single.path;
-    if (path == null) {
+    if (result.isEmpty) {
       return const ImportResult(success: false, error: 'No ZIP file selected');
+    }
+    final path = result.first.path;
+    if (path == null) {
+      return const ImportResult(success: false, error: 'Selected file has no accessible path');
     }
     final zipFile = File(path);
     final targetName = p.basenameWithoutExtension(zipFile.path);
