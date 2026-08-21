@@ -105,7 +105,9 @@ class _EditorScreenState extends State<EditorScreen> {
       canPop: !_dirty,
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
-        if (await _confirmDiscardIfDirty() && mounted) {
+        final discard = await _confirmDiscardIfDirty();
+        if (!mounted) return;
+        if (discard) {
           Navigator.pop(context);
         }
       },

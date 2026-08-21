@@ -110,9 +110,9 @@ class _NoSourcesConfiguredCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      color: const Color(0xFF2D2D2D),
-      child: const Padding(
+    return const Card(
+      color: Color(0xFF2D2D2D),
+      child: Padding(
         padding: EdgeInsets.all(16),
         child: Text(
           'No toolchain download sources are configured yet. FLDE only installs '

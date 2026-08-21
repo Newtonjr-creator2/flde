@@ -108,6 +108,7 @@ class _ExplorerScreenState extends State<ExplorerScreen> {
         ]),
       ),
     );
+    if (!mounted) return;
 
     if (action == 'rename') {
       final newName = await _promptName('Rename', p.basename(entity.path));
