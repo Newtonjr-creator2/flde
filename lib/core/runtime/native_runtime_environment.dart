@@ -132,7 +132,7 @@ class NativeRuntimeEnvironment implements RuntimeEnvironment {
 
     for (final candidate in candidates) {
       final file = File(candidate);
-      if (await _linker!.canLaunch(file)) return candidate;
+      if (await _linker.canLaunch(file)) return candidate;
     }
     return null;
   }
