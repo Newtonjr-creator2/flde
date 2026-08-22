@@ -189,17 +189,14 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
     if (monaco != null) {
       final Uri uri = Uri.parse(_fileUri(path));
 
-      // Use a nullable variable to safely check whether the document
-      // already exists in Monaco.
-      MonacoDocument? document = monaco.documentByUri(uri);
-
-      if (document == null) {
-        document = await monaco.openDocument(
-          text: _documents[path]!.text,
-          language: _documents[path]!.language,
-          uri: uri,
-        );
-      }
+      // Always open (or replace) the document with the current content.
+      // This avoids the non-nullable documentByUri problem and ensures
+      // the document is ready to be activated.
+      final document = await monaco.openDocument(
+        text: _documents[path]!.text,
+        language: _documents[path]!.language,
+        uri: uri,
+      );
 
       await monaco.activateDocument(document);
     }
