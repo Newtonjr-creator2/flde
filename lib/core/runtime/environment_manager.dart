@@ -173,13 +173,14 @@ class EnvironmentManager {
     final libraryDirs = <String>[p.join(storage.runtimeDir.path, 'lib')];
     for (final kind in ToolchainKind.values) {
       final resolved = await resolve(kind);
-      if (resolved?.installRoot != null) {
-        libraryDirs.add(p.join(resolved.installRoot!, 'lib'));
-        libraryDirs.add(p.join(resolved.installRoot!, 'libexec'));
+      final installRoot = resolved?.installRoot;
+      if (installRoot != null) {
+        libraryDirs.add(p.join(installRoot, 'lib'));
+        libraryDirs.add(p.join(installRoot, 'libexec'));
         if (kind == ToolchainKind.java) {
           libraryDirs.addAll([
-            p.join(resolved.installRoot!, 'lib', 'jvm', 'java-17-openjdk', 'lib'),
-            p.join(resolved.installRoot!, 'lib', 'jvm', 'java-21-openjdk', 'lib'),
+            p.join(installRoot, 'lib', 'jvm', 'java-17-openjdk', 'lib'),
+            p.join(installRoot, 'lib', 'jvm', 'java-21-openjdk', 'lib'),
           ]);
         }
       }

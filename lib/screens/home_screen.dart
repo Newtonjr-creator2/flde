@@ -147,13 +147,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: const Column(children: [
                         SizedBox(height: 10),
                         Icon(Icons.folder_open, color: Color(0xFFCCCCCC)),
-                        const SizedBox(height: 18),
+                        SizedBox(height: 18),
                         Icon(Icons.search, color: Color(0xFF777777)),
-                        const SizedBox(height: 18),
+                        SizedBox(height: 18),
                         Icon(Icons.source_outlined, color: Color(0xFF777777)),
-                        const Spacer(),
+                        Spacer(),
                         Icon(Icons.settings_outlined, color: Color(0xFF777777)),
-                        const SizedBox(height: 14),
+                        SizedBox(height: 14),
                       ]),
                     ),
                     Expanded(

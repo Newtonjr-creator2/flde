@@ -32,7 +32,7 @@ class _OpenDocument {
   final MonacoLanguage language;
   bool dirty;
 
-  _OpenDocument({required this.path, required this.text, required this.language});
+  _OpenDocument({required this.path, required this.text, required this.language, this.dirty = false});
 }
 
 class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
@@ -111,16 +111,7 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
     final doc = _documents[path]!;
     if (_monaco != null) {
       final existing = _monaco!.documentByUri(Uri.parse(_fileUri(path)));
-      if (existing != null) {
-        await _monaco!.activateDocument(existing);
-      } else {
-        final created = await _monaco!.openDocument(
-          text: doc.text,
-          language: doc.language,
-          uri: Uri.parse(_fileUri(path)),
-        );
-        await _monaco!.activateDocument(created);
-      }
+      await _monaco!.activateDocument(existing);
     }
   }
 
