@@ -45,3 +45,8 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  # CI/build tooling places the Android ARM64 runtime probe here before
+  # flutter build. Keeping it as a normal Flutter asset lets FLDE extract
+  # the ELF into its managed filesystem at runtime.
+  assets:
+    - assets/runtime/runtime_probe_arm64-v8a

@@ -3,6 +3,7 @@ import 'dart:io';
 import '../../models/process_result.dart';
 import 'process_executor.dart';
 import 'runtime_environment.dart';
+import 'system_linker_launcher.dart';
 
 /// Executes processes directly through the Android app sandbox's own
 /// process-creation APIs (`dart:io` Process, which ultimately goes through
@@ -26,8 +27,20 @@ import 'runtime_environment.dart';
 /// restriction applies to this device; it reports whatever the real test
 /// shows.
 class NativeRuntimeEnvironment implements RuntimeEnvironment {
+  /// When supplied, ELF executables found inside this directory (including
+  /// through PATH) are launched via Android's system linker rather than
+  /// directly via execve. This is the Termux-style escape hatch for Android
+  /// app-data executable restrictions.
+  final Directory? managedRoot;
+  late final SystemLinkerLauncher? _linker =
+      managedRoot == null ? null : SystemLinkerLauncher(managedRoot!);
+
+  NativeRuntimeEnvironment({this.managedRoot});
+
   @override
-  String get name => 'NativeRuntimeEnvironment (direct exec, no PRoot/VM)';
+  String get name => managedRoot == null
+      ? 'NativeRuntimeEnvironment (direct exec, no PRoot/VM)'
+      : 'NativeRuntimeEnvironment (Android system-linker ELF runtime)';
 
   @override
   Future<void> prepare() async {
@@ -53,7 +66,18 @@ class NativeRuntimeEnvironment implements RuntimeEnvironment {
     String? workingDirectory,
     Map<String, String>? environment,
     Duration? timeout,
-  }) {
+  }) async {
+    final managedPath = await _resolveManagedElf(executable, environment);
+    if (managedPath != null) {
+      return _linker!.run(
+        managedPath,
+        arguments,
+        workingDirectory: workingDirectory,
+        environment: environment,
+        timeout: timeout,
+      );
+    }
+
     return ProcessExecutor.run(
       executable,
       arguments,
@@ -69,13 +93,48 @@ class NativeRuntimeEnvironment implements RuntimeEnvironment {
     List<String> arguments, {
     String? workingDirectory,
     Map<String, String>? environment,
-  }) {
+  }) async {
+    final managedPath = await _resolveManagedElf(executable, environment);
+    if (managedPath != null) {
+      return _linker!.start(
+        managedPath,
+        arguments,
+        workingDirectory: workingDirectory,
+        environment: environment,
+      );
+    }
+
     return ProcessExecutor.start(
       executable,
       arguments,
       workingDirectory: workingDirectory,
       environment: environment,
     );
+  }
+
+  Future<String?> _resolveManagedElf(
+    String executable,
+    Map<String, String>? environment,
+  ) async {
+    if (_linker == null) return null;
+
+    final candidates = <String>[];
+    if (executable.contains('/')) {
+      candidates.add(executable);
+    } else {
+      final path = environment?['PATH'] ?? Platform.environment['PATH'] ?? '';
+      for (final directory in path.split(':')) {
+        if (directory.isNotEmpty) {
+          candidates.add('$directory/$executable');
+        }
+      }
+    }
+
+    for (final candidate in candidates) {
+      final file = File(candidate);
+      if (await _linker!.canLaunch(file)) return candidate;
+    }
+    return null;
   }
 
   static const List<String> _shellCandidates = [

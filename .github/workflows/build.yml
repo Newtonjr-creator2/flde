@@ -24,6 +24,11 @@ jobs:
       - name: Accept Android SDK licenses (defensive — some deps pull newer platforms)
         run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null || true
 
+      - name: Build FLDE Android ARM64 runtime probe
+        run: |
+          chmod +x tooling/build_runtime_probe.sh
+          ./tooling/build_runtime_probe.sh
+
       - run: flutter pub get
 
       - name: Analyze (real errors are NOT hidden — a failure here must fail the build)

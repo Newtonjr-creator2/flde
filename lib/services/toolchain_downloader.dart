@@ -143,14 +143,32 @@ class ToolchainDownloader {
       throw UnsupportedError('Unsupported archive format for $name (only .zip/.tar/.tar.gz supported)');
     }
 
+    final destinationCanonical = p.normalize(destination.absolute.path);
+    final destinationPrefix = '$destinationCanonical${p.separator}';
+
     for (final file in archive) {
-      final outPath = p.join(destination.path, file.name);
+      // Reject absolute paths and ../ traversal before touching the
+      // filesystem. Archive entries are untrusted even after checksum
+      // verification because a trusted publisher can still ship a malformed
+      // archive.
+      final relativeName = file.name.replaceAll('\\', '/');
+      if (p.isAbsolute(relativeName)) {
+        throw const FormatException('Archive contains an absolute path');
+      }
+
+      final outPath = p.normalize(p.join(destinationCanonical, relativeName));
+      if (outPath != destinationCanonical && !outPath.startsWith(destinationPrefix)) {
+        throw const FormatException('Archive contains a path traversal entry');
+      }
+
       if (file.isFile) {
         final outFile = File(outPath);
         await outFile.parent.create(recursive: true);
         await outFile.writeAsBytes(file.content as List<int>);
         if (!Platform.isWindows && (file.mode & 0x49) != 0) {
-          // preserve the executable bit for real binaries (bin/dart, bin/flutter, ...)
+          // Preserve the executable bit. Android may still reject direct
+          // exec from app-data; NativeRuntimeEnvironment handles ELF files
+          // through the system linker instead.
           await Process.run('chmod', ['+x', outPath]);
         }
       } else {

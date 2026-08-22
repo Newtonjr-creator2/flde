@@ -1,5 +1,5 @@
 import '../core/runtime/environment_manager.dart';
-import '../core/runtime/process_executor.dart';
+import '../core/runtime/runtime_environment.dart';
 import '../models/toolchain_info.dart';
 
 /// Actually runs each tool's version command and parses the real output.
@@ -8,8 +8,9 @@ import '../models/toolchain_info.dart';
 /// presence of a file, and never hardcoded.
 class ToolchainValidator {
   final EnvironmentManager environment;
+  final RuntimeEnvironment runtime;
 
-  ToolchainValidator(this.environment);
+  ToolchainValidator(this.environment, this.runtime);
 
   Future<ToolchainInfo> validate(ToolchainKind kind, String displayName) async {
     final resolved = await environment.resolve(kind);
@@ -24,7 +25,7 @@ class ToolchainValidator {
     }
 
     final args = _versionArgs(kind);
-    final result = await ProcessExecutor.run(
+    final result = await runtime.execute(
       resolved.path,
       args,
       timeout: const Duration(seconds: 10),

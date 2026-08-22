@@ -1,9 +1,12 @@
 import 'dart:io';
+
+import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 
 import '../storage/storage_service.dart';
 import 'native_runtime_environment.dart';
 import 'process_executor.dart';
+import 'system_linker_launcher.dart';
 import 'runtime_environment.dart';
 
 enum CheckStatus { verified, unverified, failed, unavailable }
@@ -96,6 +99,12 @@ class RuntimeDiagnosticsService {
 
     final directExecCheck = await _checkDirectExecutionOfPrivateFile(shell);
     checks.add(directExecCheck);
+
+    // This is the load-bearing proof for the new runtime architecture:
+    // execute an ELF supplied by FLDE through Android's own system linker.
+    // Unlike the old direct-exec experiment, this deliberately does not
+    // chmod/exec the file itself.
+    checks.add(await _checkSystemLinkerElfExecution());
 
     checks.add(await _checkStdoutStderrExitCode());
 
@@ -241,6 +250,74 @@ class RuntimeDiagnosticsService {
         CheckStatus.failed,
         'Process failed to even start: $e (this itself is evidence of an exec restriction, not a code bug)',
       );
+    }
+  }
+
+  Future<RuntimeCheck> _checkSystemLinkerElfExecution() async {
+    final launcher = SystemLinkerLauncher(storage.root);
+    final linker = await launcher.resolveLinker();
+    if (linker == null) {
+      return const RuntimeCheck(
+        'FLDE ELF via Android system linker',
+        CheckStatus.unavailable,
+        'No 64-bit Android dynamic linker was found.',
+      );
+    }
+
+    final architecture = await _detectArchitecture();
+    if (architecture != 'aarch64') {
+      return RuntimeCheck(
+        'FLDE ELF via Android system linker',
+        CheckStatus.unavailable,
+        'The bundled proof currently targets ARM64 (aarch64); detected ${architecture ?? 'unknown'}.',
+      );
+    }
+
+    final probe = File(p.join(storage.runtimeBinDir.path, 'flde_runtime_probe'));
+    try {
+      final data = await rootBundle.load('assets/runtime/runtime_probe_arm64-v8a');
+      await probe.writeAsBytes(data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes), flush: true);
+
+      if (!await launcher.canLaunch(probe)) {
+        return const RuntimeCheck(
+          'FLDE ELF via Android system linker',
+          CheckStatus.failed,
+          'The bundled runtime probe was not recognized as an ELF inside FLDE storage.',
+        );
+      }
+
+      final result = await launcher.run(
+        probe.path,
+        const [],
+        environment: Platform.environment,
+        timeout: const Duration(seconds: 10),
+      );
+
+      final output = result.stdout.trim();
+      final ok = result.succeeded && output.contains('FLDE_RUNTIME_PROBE_OK');
+      return RuntimeCheck(
+        'FLDE ELF via Android system linker',
+        ok ? CheckStatus.verified : CheckStatus.failed,
+        ok
+            ? 'SUCCESS through $linker. FLDE-provided ELF executed; output: ${output.replaceAll('\n', ' | ')}'
+            : 'Linker launch failed: exit=${result.exitCode}, stdout=${result.stdout.trim()}, stderr=${result.stderr.trim()}',
+      );
+    } on FlutterError catch (e) {
+      return RuntimeCheck(
+        'FLDE ELF via Android system linker',
+        CheckStatus.unavailable,
+        'Runtime probe asset is not bundled in this build. Run tooling/build_runtime_probe.sh before building: $e',
+      );
+    } catch (e) {
+      return RuntimeCheck(
+        'FLDE ELF via Android system linker',
+        CheckStatus.failed,
+        'Probe setup/launch failed: $e',
+      );
+    } finally {
+      try {
+        if (await probe.exists()) await probe.delete();
+      } catch (_) {}
     }
   }
 

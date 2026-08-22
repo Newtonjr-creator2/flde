@@ -1,6 +1,7 @@
 import 'package:path/path.dart' as p;
 
 import '../core/runtime/environment_manager.dart';
+import '../core/runtime/native_runtime_environment.dart';
 import '../core/storage/storage_service.dart';
 import '../models/toolchain_info.dart';
 import '../models/toolchain_manifest.dart';
@@ -30,7 +31,8 @@ class ToolchainManager {
   static Future<ToolchainManager> create() async {
     final storage = await StorageService.instance();
     final environment = EnvironmentManager(storage);
-    final validator = ToolchainValidator(environment);
+    final runtime = NativeRuntimeEnvironment(managedRoot: storage.root);
+    final validator = ToolchainValidator(environment, runtime);
     final downloader = ToolchainDownloader(storage);
     final manifestLoader = ToolchainManifestLoader(
       p.join(storage.root.path, 'toolchains', 'manifest.json'),

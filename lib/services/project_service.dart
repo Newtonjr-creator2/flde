@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import '../core/runtime/environment_manager.dart';
+import '../core/runtime/native_runtime_environment.dart';
 import '../core/storage/storage_service.dart';
 import '../models/toolchain_info.dart';
 import 'toolchain_validator.dart';
@@ -43,7 +44,9 @@ class ProjectService {
 
   static Future<ToolchainValidator> _val() async {
     if (_validator != null) return _validator!;
-    _validator = ToolchainValidator(await _env());
+    final environment = await _env();
+    final storage = await StorageService.instance();
+    _validator = ToolchainValidator(environment, NativeRuntimeEnvironment(managedRoot: storage.root));
     return _validator!;
   }
 

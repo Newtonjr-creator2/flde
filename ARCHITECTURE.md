@@ -19,46 +19,56 @@ developers — not a bug in this codebase.
   manager, restricted exec). FLDE does not pretend this is a normal Linux
   userland.
 
-## 3. Chosen runtime architecture (Phase 2B)
+## 3. Android runtime model and current implementation
 
-**`NativeRuntimeEnvironment`**: direct process execution via `dart:io`
-`Process`, which itself goes through Android's normal process-creation
-path. No PRoot, no bundled userspace, no VM/container.
+**`NativeRuntimeEnvironment` + Android system-linker execution**
 
-### Why this first, not PRoot
+Direct `dart:io` execution is still used for Android/system executables such as
+`uname` and `sh`. However, FLDE-managed ELF executables are now launched
+through Android's own 64-bit dynamic linker:
 
-Per spec section 6, PRoot was not assumed just because Termux uses it.
-Direct native execution is strictly simpler, has zero extra licensing
-surface, and — critically — is required as a baseline measurement before
-any heavier architecture is justified: if direct exec of FLDE-downloaded
-binaries turns out to work on a given device, PRoot/userspace-in-a-box is
-unnecessary complexity. If it doesn't work (the documented SELinux
-restriction above), that tells us exactly what the next architecture must
-solve, rather than guessing.
+```
+FLDE-managed ELF
+      ↓
+/system/bin/linker64 <elf> [args...]
+      ↓
+Android dynamic linker
+      ↓
+FLDE ELF process
+```
 
-### The experiment (`RuntimeDiagnosticsService`)
+This is the important Termux-style mechanism for Android app-data execution:
+the Android process API creates the **system linker** process, and the linker
+loads the target ELF. FLDE does not rely on `chmod +x` making an app-data ELF
+directly executable.
 
-Two distinct checks, deliberately kept separate so a failure in one isn't
-misreported as the other:
+`SystemLinkerLauncher` deliberately accepts only ELF files located under
+FLDE's managed storage root. Arbitrary paths are rejected.
 
-1. **Interpreted execution** — write a script into FLDE's own storage,
-   run it via `sh <script>`. This only needs read permission on the file,
-   not exec permission, so it's a control test expected to pass broadly.
-2. **Direct execution** — write a script, `chmod 755` it, then execute the
-   file path directly (relying on the kernel's shebang resolution). This
-   is the actual open question for whether a downloaded Dart/Flutter
-   binary can run at all without further engineering.
+The runtime still has no PRoot, VM, or general Linux distribution. That is
+intentional: this first implementation isolates the execution restriction
+without adding a much larger compatibility layer.
 
-Run **Diagnostics → FLDE Runtime (experimental)** on a real device to see
-the actual result — this document does not hardcode an outcome because
-only a real device can produce one. If check 2 fails, the documented next
-step (NOT implemented yet) is packaging a minimal loader/interpreter as a
-`.so` under `android/app/src/main/jniLibs/<abi>/` at APK build time —
-Android's PackageManager extracts files under `jniLibs/` with execute
-permission specifically because the dynamic linker needs to `dlopen` them.
-This only helps for a component fixed at APK-build time, not arbitrary
-runtime-downloaded toolchains, so it would only be a partial answer and
-needs its own dedicated investigation.
+### Runtime proof
+
+`tooling/runtime_probe/runtime_probe.c` is compiled as an ARM64 Android PIE
+during CI. The resulting ELF is bundled as a Flutter asset. On first
+diagnostics execution FLDE copies it into its managed runtime directory and
+invokes it through `SystemLinkerLauncher`.
+
+The probe calls the real `uname()` API itself and prints:
+
+```
+FLDE_RUNTIME_PROBE_OK
+machine=<kernel-reported architecture>
+```
+
+Therefore the successful result proves more than `/system/bin/uname`: code
+provided by FLDE was loaded and executed as a native process on the Android
+device.
+
+The probe is ARM64-only in this iteration. Non-ARM64 devices are reported as
+unsupported rather than pretending compatibility.
 
 ## 4. Supported ABI
 
@@ -100,53 +110,103 @@ directory/toolchain genuinely exists — see spec section 8's "do not
 inject paths for tools that do not exist," which is enforced in code, not
 just documentation.
 
-## 7. Current limitations (explicit)
+## 7. Current runtime status
 
-| Item | Status |
+| Capability | Status |
 |---|---|
-| Direct exec of FLDE-private files | **UNVERIFIED** — run Diagnostics on your device for the real answer |
-| PRoot / Linux userspace-in-a-box | NOT IMPLEMENTED — deferred pending the experiment above |
-| Dart SDK execution | NOT YET ATTEMPTED — no manifest source configured (spec forbids guessing URLs) |
-| Flutter/Java/Gradle/Android SDK execution | NOT TESTED |
-| Application UID / native library dir | NOT IMPLEMENTED — requires a Kotlin MethodChannel not yet added |
-| Dynamic linker behavior (ELF compatibility) | NOT TESTED — requires a real compiled test binary, which needs a build step this phase doesn't include |
-| Process groups / child-process trees (e.g. future `flutter run` spawning `dart`+`gradle`+`java`) | Architecture (`ProcessSession`/`RunManager`) exists from Phase 2A; multi-child lifecycle not exercised yet |
+| Android system-binary execution | **VERIFIED** |
+| Direct execution of FLDE-private files | **KNOWN TO FAIL on the tested device** |
+| Android system-linker ELF execution | **IMPLEMENTED — requires physical-device verification** |
+| ARM64 runtime probe build | **IMPLEMENTED in CI** |
+| ARM64 runtime probe execution | **PENDING physical-device test after this build** |
+| PRoot / VM | NOT IMPLEMENTED |
+| Full Linux userspace | NOT IMPLEMENTED |
+| Dart SDK execution | NOT YET IMPLEMENTED |
+| Flutter execution | NOT YET IMPLEMENTED |
+| Java/JDK execution | NOT YET IMPLEMENTED |
+| Gradle execution | NOT YET IMPLEMENTED |
+| Android SDK execution | NOT YET IMPLEMENTED |
 
-## 8. Dart experiment results
+## 8. Toolchain execution implications
 
-Not yet run — blocked on having a real, verified Dart SDK download source
-(spec section 27: no guessed URLs). Once a manifest entry with a genuine
-`downloadUrl`/`sha256` is added, `ToolchainDownloader` → the direct-exec
-check above → `dart --version` is the concrete path to a real result.
+Toolchain validation now goes through `RuntimeEnvironment` rather than calling
+`ProcessExecutor` directly. When a resolved executable is an ELF inside FLDE
+managed storage, `NativeRuntimeEnvironment` can route it through the system
+linker automatically.
 
-## 9. Flutter status
+This is intentionally different from declaring a toolchain installed merely
+because an archive was downloaded. A toolchain remains unverified until its
+real version command exits successfully.
 
-Not tested. Blocked on the same manifest-source gap, and additionally on
-whatever the Dart direct-exec experiment reveals (Flutter's toolchain has
-a strictly larger exec/process-tree surface than Dart alone).
+The next toolchain should be **Android-compatible ARM64 Dart**, not an arbitrary
+desktop Linux Dart archive. The package must have compatible ELF/Bionic
+dependencies and be tested through the new runtime.
 
-## 10. Future runtime roadmap
+## 9. Userspace roadmap
 
-1. Run the direct-exec experiment on real hardware, record the result here.
-2. If direct exec works: add a real, verified Dart manifest entry and
-   attempt `dart --version` end-to-end.
-3. If direct exec fails: investigate the `jniLibs`-extraction technique
-   for a minimal loader, OR evaluate a proper userspace approach — with
-   the same rigor (real compatibility testing, no assumed success) applied
-   here.
-4. Only after Dart is genuinely working: repeat for Java, then Gradle,
-   then Android SDK, then Flutter — per spec section 20's required
-   ordering.
+After the linker proof succeeds, build the smallest useful FLDE userspace:
 
-## 11. VERIFIED / UNVERIFIED / NOT IMPLEMENTED summary
+```
+FLDE/
+  runtime/
+    bin/
+    lib/
+    etc/
+    tmp/
+    home/
+    usr/
+  toolchains/
+  projects/
+  pub-cache/
+  gradle-cache/
+```
 
-- **VERIFIED**: system-binary execution (`uname`, `sh` resolution),
-  `/proc` partial availability, stdout/stderr/exit-code plumbing, real
-  toolchain absence detection (Dart/Flutter/Java/Git/Gradle correctly
-  report "not installed" rather than fabricating a version).
-- **UNVERIFIED**: direct exec of FLDE-private files (device-dependent —
-  run Diagnostics to find out on yours).
-- **NOT IMPLEMENTED**: any actual toolchain install (manifest is
-  deliberately empty), Flutter visual preview, PRoot/userspace runtime,
-  Android SDK directory validation, application UID/native-lib-dir
-  reporting.
+The runtime environment should then provide a controlled `PATH`, `HOME`,
+`TMPDIR`, library paths, and tool-specific variables.
+
+A Termux-style `LD_PRELOAD`/exec compatibility layer is a later step if
+child-processes or shell scripts require it. It is not required for the first
+ELF proof.
+
+## 10. Toolchain order
+
+1. Android ARM64 runtime probe
+2. Android-compatible ARM64 Dart
+3. Git
+4. JDK
+5. Gradle
+6. Android SDK command-line tools
+7. Flutter
+
+Flutter is deliberately last because its host-tool and process-tree
+requirements are substantially larger than Dart's.
+
+## 11. Security requirements
+
+The runtime launcher:
+
+- accepts only ELF files;
+- accepts only paths inside FLDE managed storage;
+- uses a fixed set of Android linker paths;
+- never constructs linker paths from downloaded metadata;
+- does not treat `chmod +x` as proof of executability.
+
+The existing toolchain downloader already verifies SHA-256 before extraction.
+Archive extraction still needs path-traversal hardening before accepting
+untrusted package sources.
+
+## 12. Verified / unverified summary
+
+- **VERIFIED:** Android system binaries execute through Dart `Process`.
+- **VERIFIED:** the tested device reports `aarch64` dynamically through
+  `uname -m`.
+- **VERIFIED:** FLDE app storage is writable.
+- **VERIFIED on the tested device:** direct execution of a FLDE-created file
+  fails with permission denied.
+- **IMPLEMENTED:** Termux-style Android system-linker launcher for
+  FLDE-managed ELF files.
+- **IMPLEMENTED:** ARM64 native runtime probe and CI build step.
+- **PENDING:** physical-device execution of that probe.
+- **NOT IMPLEMENTED:** complete Termux-compatible userspace, package
+  repository, or all six development toolchains.
+

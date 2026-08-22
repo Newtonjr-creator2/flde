@@ -28,7 +28,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
   Future<void> _init() async {
     final storage = await StorageService.instance();
     final environment = EnvironmentManager(storage);
-    final runtime = NativeRuntimeEnvironment();
+    final runtime = NativeRuntimeEnvironment(managedRoot: storage.root);
     final session = TerminalSession(
       environment: environment,
       runtime: runtime,
