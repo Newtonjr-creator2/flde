@@ -207,19 +207,19 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
       child: Column(
         children: [
           const SizedBox(height: 6),
-          _activityIcon(Icons.folder_open, 'Explorer', () {
+          _activityconst Icon(Icons.folder_open, 'Explorer', () {
             if (MediaQuery.sizeOf(context).width < 700) {
               _scaffoldKey.currentState?.openDrawer();
             } else {
               setState(() => _sidebarVisible = !_sidebarVisible);
             }
           }),
-          _activityIcon(Icons.extension_outlined, 'Toolchains', () {
+          _activityconst Icon(Icons.extension_outlined, 'Toolchains', () {
             Navigator.push(context, MaterialPageRoute(builder: (_) => const ToolchainsScreen()));
           }),
           const Spacer(),
-          _activityIcon(Icons.terminal, 'Terminal', _toggleTerminal),
-          _activityIcon(Icons.settings_outlined, 'Settings', () {}),
+          _activityconst Icon(Icons.terminal, 'Terminal', _toggleTerminal),
+          _activityconst Icon(Icons.settings_outlined, 'Settings', () {}),
           const SizedBox(height: 8),
         ],
       ),
