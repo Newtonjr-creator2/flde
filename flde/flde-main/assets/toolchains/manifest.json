@@ -1,0 +1,87 @@
+[
+  {
+    "kind": "flutter",
+    "version": "3.44.2-termux-arm64",
+    "architecture": "aarch64",
+    "platform": "android-bionic",
+    "downloadUrl": "https://github.com/ImL1s/termux-flutter-wsl/releases/download/v3.44.2-termux/flutter_3.44.2_aarch64.deb",
+    "sha256": "66a7099324c0d7094d604aa92abeec87b7a29b8e0bc697b819e0cd91fc706000",
+    "sizeBytes": 669484232,
+    "archiveType": "deb",
+    "installerType": "termux-deb",
+    "dependencies": [],
+    "runtimeRequirements": {
+      "requiresDirectExecFromPrivateStorage": false,
+      "supportedAbis": ["arm64-v8a", "aarch64"]
+    },
+    "notes": "Android-bionic ARM64 Flutter build. This is intentionally not the official Linux/glibc Flutter SDK; it is a community Termux-compatible build designed for native Android hosts."
+  },
+  {
+    "kind": "androidSdk",
+    "version": "35.0.0-termux-arm64",
+    "architecture": "aarch64",
+    "platform": "android-bionic",
+    "downloadUrl": "https://github.com/mumumusuc/termux-android-sdk/releases/download/35.0.0/android-sdk_35.0.0_aarch64.deb",
+    "sha256": "fc727c848b8ca4e3011515850702adc1bf98ceae7205d7acc82d026bc94d2601",
+    "archiveType": "deb",
+    "installerType": "termux-deb",
+    "dependencies": [],
+    "runtimeRequirements": {
+      "requiresDirectExecFromPrivateStorage": false,
+      "supportedAbis": ["arm64-v8a", "aarch64"]
+    },
+    "notes": "Android-bionic SDK/build-tools package for ARM64 Termux-style hosts. Google SDK license terms still apply to SDK components."
+  },
+  {
+    "kind": "java",
+    "version": "17-termux-build-required",
+    "architecture": "aarch64",
+    "platform": "android-bionic",
+    "installerType": "termux-rebuild",
+    "dependencies": [],
+    "runtimeRequirements": {
+      "requiresDirectExecFromPrivateStorage": false,
+      "supportedAbis": ["arm64-v8a", "aarch64"]
+    },
+    "notes": "JDK must be built/repackaged for FLDE's own prefix; official Linux JDK archives are glibc builds and are not valid Android runtime binaries."
+  },
+  {
+    "kind": "git",
+    "version": "termux-build-required",
+    "architecture": "aarch64",
+    "platform": "android-bionic",
+    "installerType": "termux-rebuild",
+    "dependencies": [],
+    "runtimeRequirements": {
+      "requiresDirectExecFromPrivateStorage": false,
+      "supportedAbis": ["arm64-v8a", "aarch64"]
+    },
+    "notes": "Git should come from a FLDE-prefix-compatible Termux package build, not an arbitrary desktop Linux binary."
+  },
+  {
+    "kind": "gradle",
+    "version": "wrapper-managed",
+    "architecture": "any",
+    "platform": "android-jvm",
+    "installerType": "gradle-zip",
+    "dependencies": ["java"],
+    "runtimeRequirements": {
+      "requiresDirectExecFromPrivateStorage": false,
+      "supportedAbis": []
+    },
+    "notes": "Gradle is JVM code; FLDE will prefer the project Gradle wrapper once JDK is available."
+  },
+  {
+    "kind": "dart",
+    "version": "bundled-with-flutter",
+    "architecture": "aarch64",
+    "platform": "android-bionic",
+    "installerType": "flutter-bundle",
+    "dependencies": ["flutter"],
+    "runtimeRequirements": {
+      "requiresDirectExecFromPrivateStorage": false,
+      "supportedAbis": ["arm64-v8a", "aarch64"]
+    },
+    "notes": "Dart is supplied by the Android-compatible Flutter SDK rather than downloading the official Linux/glibc Dart SDK."
+  }
+]
