@@ -12,16 +12,22 @@ import '../services/file_service.dart';
 import '../services/terminal_service.dart';
 import 'toolchains_screen.dart';
 
-/// FLDE's main workbench. The layout deliberately follows the familiar
-/// VS-Code-style workbench model: activity bar, explorer, editor tabs,
-/// Monaco editor, integrated terminal, and a status bar.
+/// FLDE's main workbench.
 ///
-/// It is not a pixel-for-pixel copy of Microsoft's product; it uses the same
-/// interaction model while keeping FLDE branding and mobile-first behavior.
+/// VS-Code-style mobile workbench containing:
+/// - Activity bar
+/// - Explorer
+/// - Editor tabs
+/// - Monaco editor
+/// - Integrated terminal
+/// - Status bar
 class IdeWorkbenchScreen extends StatefulWidget {
   final String rootPath;
 
-  const IdeWorkbenchScreen({super.key, required this.rootPath});
+  const IdeWorkbenchScreen({
+    super.key,
+    required this.rootPath,
+  });
 
   @override
   State<IdeWorkbenchScreen> createState() => _IdeWorkbenchScreenState();
@@ -31,35 +37,44 @@ class _OpenDocument {
   final String path;
   final String text;
   final MonacoLanguage language;
-  bool dirty;
+
+  bool dirty = false;
 
   _OpenDocument({
     required this.path,
     required this.text,
     required this.language,
-    this.dirty = false,
   });
 }
 
 class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
-  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-  final Map<String, _OpenDocument> _documents = {};
-  final List<String> _tabs = [];
+  final GlobalKey<ScaffoldState> _scaffoldKey =
+      GlobalKey<ScaffoldState>();
+
+  final Map<String, _OpenDocument> _documents =
+      <String, _OpenDocument>{};
+
+  final List<String> _tabs = <String>[];
 
   String? _activePath;
+
   MonacoController? _monaco;
 
   bool _sidebarVisible = true;
   bool _terminalVisible = false;
   bool _explorerLoading = false;
 
-  List<FileSystemEntity> _entries = [];
-  String _directory = '';
+  List<FileSystemEntity> _entries = <FileSystemEntity>[];
+
+  late String _directory;
 
   TerminalSession? _terminal;
 
-  final _terminalController = TextEditingController();
-  final _terminalScroll = ScrollController();
+  final TextEditingController _terminalController =
+      TextEditingController();
+
+  final ScrollController _terminalScroll =
+      ScrollController();
 
   StreamSubscription<TerminalHistoryEntry>? _terminalSub;
 
@@ -88,44 +103,58 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
       workingDirectory: widget.rootPath,
     );
 
-    _terminalSub = session.onEntry.listen((entry) {
-      if (mounted) {
-        setState(() {});
-
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (_terminalScroll.hasClients) {
-            _terminalScroll.jumpTo(
-              _terminalScroll.position.maxScrollExtent,
-            );
-          }
-        });
+    _terminalSub = session.onEntry.listen((_) {
+      if (!mounted) {
+        return;
       }
+
+      setState(() {});
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_terminalScroll.hasClients) {
+          _terminalScroll.jumpTo(
+            _terminalScroll.position.maxScrollExtent,
+          );
+        }
+      });
     });
 
-    if (mounted) {
-      setState(() => _terminal = session);
+    if (!mounted) {
+      return;
     }
+
+    setState(() {
+      _terminal = session;
+    });
   }
 
   Future<void> _refreshExplorer() async {
-    setState(() => _explorerLoading = true);
+    if (mounted) {
+      setState(() {
+        _explorerLoading = true;
+      });
+    }
 
     final entries = await FileService.listDir(_directory);
 
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
 
     entries.sort((a, b) {
-      final ad = a is Directory;
-      final bd = b is Directory;
+      final bool aDirectory = a is Directory;
+      final bool bDirectory = b is Directory;
 
-      if (ad != bd) {
-        return ad ? -1 : 1;
+      if (aDirectory != bDirectory) {
+        return aDirectory ? -1 : 1;
       }
 
       return p
           .basename(a.path)
           .toLowerCase()
-          .compareTo(p.basename(b.path).toLowerCase());
+          .compareTo(
+            p.basename(b.path).toLowerCase(),
+          );
     });
 
     setState(() {
@@ -147,47 +176,61 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
       _tabs.add(path);
     }
 
-    setState(() => _activePath = path);
+    if (!mounted) {
+      return;
+    }
 
-    final doc = _documents[path]!;
+    setState(() {
+      _activePath = path;
+    });
 
-    if (_monaco != null) {
-      final existing = _monaco!.documentByUri(
+    final MonacoController? monaco = _monaco;
+
+    if (monaco != null) {
+      final document = monaco.documentByUri(
         Uri.parse(_fileUri(path)),
       );
 
-      await _monaco!.activateDocument(existing);
+      await monaco.activateDocument(document);
     }
   }
 
   Future<void> _closeTab(String path) async {
-    final doc = _documents[path];
+    final _OpenDocument? document = _documents[path];
 
-    if (doc?.dirty == true) {
-      final discard = await showDialog<bool>(
+    if (document?.dirty == true) {
+      final bool? discard = await showDialog<bool>(
         context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Unsaved changes'),
-          content: Text(
-            'Discard changes to ${p.basename(path)}?',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel'),
+        builder: (ctx) {
+          return AlertDialog(
+            title: const Text('Unsaved changes'),
+            content: Text(
+              'Discard changes to ${p.basename(path)}?',
             ),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Discard'),
-            ),
-          ],
-        ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(ctx, false);
+                },
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  Navigator.pop(ctx, true);
+                },
+                child: const Text('Discard'),
+              ),
+            ],
+          );
+        },
       );
 
-      if (discard != true) return;
+      if (discard != true) {
+        return;
+      }
     }
 
-    final uri = Uri.parse(_fileUri(path));
+    final Uri uri = Uri.parse(_fileUri(path));
 
     final opened = _monaco?.documentByUri(uri);
 
@@ -206,42 +249,52 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
       }
     }
 
-    setState(() {});
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   Future<void> _saveActive() async {
-    final path = _activePath;
+    final String? path = _activePath;
+    final MonacoController? monaco = _monaco;
 
-    if (path == null || _monaco == null) return;
+    if (path == null || monaco == null) {
+      return;
+    }
 
-    final text = await _monaco!.document.getText();
+    final String text = await monaco.document.getText();
 
     await File(path).writeAsString(text);
 
     _documents[path]?.dirty = false;
 
-    await _monaco!.document.markSaved();
+    await monaco.document.markSaved();
 
-    if (mounted) {
-      setState(() {});
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Saved'),
-          duration: Duration(milliseconds: 700),
-        ),
-      );
+    if (!mounted) {
+      return;
     }
+
+    setState(() {});
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Saved'),
+        duration: Duration(milliseconds: 700),
+      ),
+    );
   }
 
   Future<void> _runTerminalCommand() async {
-    final command = _terminalController.text.trim();
+    final String command = _terminalController.text.trim();
+    final TerminalSession? terminal = _terminal;
 
-    if (command.isEmpty || _terminal == null) return;
+    if (command.isEmpty || terminal == null) {
+      return;
+    }
 
     _terminalController.clear();
 
-    await _terminal!.execute(command);
+    await terminal.execute(command);
 
     if (mounted) {
       setState(() {});
@@ -269,29 +322,26 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final double screenWidth = MediaQuery.sizeOf(context).width;
+
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: const Color(0xFF181818),
-
       drawer: Drawer(
         backgroundColor: const Color(0xFF181818),
         child: SafeArea(
           child: _explorerPanel(),
         ),
       ),
-
       body: SafeArea(
         child: Row(
           children: [
             _activityBar(),
-
-            if (_sidebarVisible &&
-                MediaQuery.sizeOf(context).width >= 700)
+            if (_sidebarVisible && screenWidth >= 700)
               SizedBox(
                 width: 235,
                 child: _explorerPanel(),
               ),
-
             Expanded(
               child: _mainArea(),
             ),
@@ -308,7 +358,6 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
       child: Column(
         children: [
           const SizedBox(height: 6),
-
           _activityIcon(
             Icons.folder_open,
             'Explorer',
@@ -322,34 +371,29 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
               }
             },
           ),
-
           _activityIcon(
             Icons.extension_outlined,
             'Toolchains',
             () {
               Navigator.push(
                 context,
-                MaterialPageRoute(
+                MaterialPageRoute<void>(
                   builder: (_) => const ToolchainsScreen(),
                 ),
               );
             },
           ),
-
           const Spacer(),
-
           _activityIcon(
             Icons.terminal,
             'Terminal',
             _toggleTerminal,
           ),
-
           _activityIcon(
             Icons.settings_outlined,
             'Settings',
             () {},
           ),
-
           const SizedBox(height: 8),
         ],
       ),
@@ -391,9 +435,10 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
               ),
             ),
           ),
-
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 10,
+            ),
             child: Row(
               children: [
                 Expanded(
@@ -405,7 +450,6 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
                     ),
                   ),
                 ),
-
                 IconButton(
                   icon: const Icon(
                     Icons.refresh,
@@ -413,7 +457,6 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
                   ),
                   onPressed: _refreshExplorer,
                 ),
-
                 IconButton(
                   icon: const Icon(
                     Icons.create_new_folder_outlined,
@@ -424,7 +467,6 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
               ],
             ),
           ),
-
           Expanded(
             child: _explorerLoading
                 ? const Center(
@@ -438,17 +480,18 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
                     ),
                     itemCount: _entries.length,
                     itemBuilder: (_, index) {
-                      final entity = _entries[index];
+                      final FileSystemEntity entity =
+                          _entries[index];
 
-                      final isDir = entity is Directory;
+                      final bool isDirectory =
+                          entity is Directory;
 
-                      final name = p.basename(
-                        entity.path,
-                      );
+                      final String name =
+                          p.basename(entity.path);
 
                       return InkWell(
                         onTap: () {
-                          if (isDir) {
+                          if (isDirectory) {
                             setState(() {
                               _directory = entity.path;
                             });
@@ -466,22 +509,21 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
                           child: Row(
                             children: [
                               Icon(
-                                isDir
+                                isDirectory
                                     ? Icons.folder
                                     : _fileIcon(entity.path),
                                 size: 17,
                                 color: _fileColor(
                                   entity.path,
-                                  isDir,
+                                  isDirectory,
                                 ),
                               ),
-
                               const SizedBox(width: 7),
-
                               Expanded(
                                 child: Text(
                                   name,
-                                  overflow: TextOverflow.ellipsis,
+                                  overflow:
+                                      TextOverflow.ellipsis,
                                   style: const TextStyle(
                                     fontSize: 12.5,
                                   ),
@@ -504,17 +546,14 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
       children: [
         _topBar(),
         _tabBar(),
-
         Expanded(
           child: _editorArea(),
         ),
-
         if (_terminalVisible)
           SizedBox(
             height: 230,
             child: _terminalPanel(),
           ),
-
         _statusBar(),
       ],
     );
@@ -527,15 +566,12 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
       child: Row(
         children: [
           const SizedBox(width: 10),
-
           const Icon(
             Icons.code,
             size: 18,
             color: Color(0xFF4FC3F7),
           ),
-
           const SizedBox(width: 8),
-
           Expanded(
             child: Text(
               p.basename(widget.rootPath),
@@ -544,7 +580,6 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
               ),
             ),
           ),
-
           IconButton(
             icon: const Icon(
               Icons.save_outlined,
@@ -553,7 +588,6 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
             tooltip: 'Save',
             onPressed: _saveActive,
           ),
-
           IconButton(
             icon: const Icon(
               Icons.play_arrow,
@@ -562,7 +596,6 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
             tooltip: 'Run',
             onPressed: _runFlutter,
           ),
-
           IconButton(
             icon: const Icon(
               Icons.build_outlined,
@@ -571,7 +604,6 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
             tooltip: 'Build APK',
             onPressed: _buildApk,
           ),
-
           IconButton(
             icon: const Icon(
               Icons.terminal,
@@ -580,7 +612,6 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
             tooltip: 'Terminal',
             onPressed: _toggleTerminal,
           ),
-
           IconButton(
             icon: const Icon(
               Icons.more_vert,
@@ -608,9 +639,8 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
         scrollDirection: Axis.horizontal,
         itemCount: _tabs.length,
         itemBuilder: (_, index) {
-          final path = _tabs[index];
-
-          final active = path == _activePath;
+          final String path = _tabs[index];
+          final bool active = path == _activePath;
 
           return InkWell(
             onTap: () => _openFile(path),
@@ -626,7 +656,9 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
                     : const Color(0xFF181818),
                 border: Border(
                   right: BorderSide(
-                    color: Colors.black.withValues(alpha: .4),
+                    color: Colors.black.withValues(
+                      alpha: .4,
+                    ),
                   ),
                 ),
               ),
@@ -637,9 +669,7 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
                     size: 15,
                     color: _fileColor(path, false),
                   ),
-
                   const SizedBox(width: 7),
-
                   Expanded(
                     child: Text(
                       p.basename(path),
@@ -649,7 +679,6 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
                       ),
                     ),
                   ),
-
                   if (_documents[path]?.dirty == true)
                     const Text(
                       '•',
@@ -657,7 +686,6 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
                         fontSize: 16,
                       ),
                     ),
-
                   IconButton(
                     icon: const Icon(
                       Icons.close,
@@ -676,7 +704,7 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
   }
 
   Widget _editorArea() {
-    final path = _activePath;
+    final String? path = _activePath;
 
     if (path == null) {
       return Container(
@@ -690,9 +718,7 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
               size: 58,
               color: Color(0xFF3A3A3A),
             ),
-
             const SizedBox(height: 12),
-
             Text(
               p.basename(widget.rootPath),
               style: const TextStyle(
@@ -700,18 +726,14 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
                 color: Color(0xFFBDBDBD),
               ),
             ),
-
             const SizedBox(height: 6),
-
             const Text(
               'Open a file from Explorer',
               style: TextStyle(
                 color: Color(0xFF777777),
               ),
             ),
-
             const SizedBox(height: 18),
-
             const Wrap(
               spacing: 8,
               children: [
@@ -734,12 +756,12 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
       );
     }
 
-    final doc = _documents[path]!;
+    final _OpenDocument document = _documents[path]!;
 
     return MonacoEditor(
-      initialText: doc.text,
+      initialText: document.text,
       options: EditorOptions(
-        language: doc.language,
+        language: document.language,
         fontSize: 14,
         minimap: const MonacoMinimapOptions(
           enabled: false,
@@ -753,50 +775,48 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
         _monaco = controller;
 
         await controller.openDocument(
-          text: doc.text,
-          language: doc.language,
-          uri: Uri.parse(
-            _fileUri(path),
-          ),
+          text: document.text,
+          language: document.language,
+          uri: Uri.parse(_fileUri(path)),
         );
 
-        controller.onContentChanged.listen(
-          (event) async {
-            if (!mounted) return;
+        controller.onContentChanged.listen((event) {
+          if (!mounted) {
+            return;
+          }
 
-            final active = _activePath;
-            final uri = event.documentUri;
+          final String? active = _activePath;
+          final Uri? uri = event.documentUri;
 
-            if (uri == null) return;
+          if (uri == null) {
+            return;
+          }
 
-            if (active != null &&
-                Uri.parse(_fileUri(active)) == uri) {
+          if (active != null &&
+              Uri.parse(_fileUri(active)) == uri) {
+            setState(() {
+              _documents[active]?.dirty = true;
+            });
+
+            return;
+          }
+
+          for (final MapEntry<String, _OpenDocument> entry
+              in _documents.entries) {
+            if (Uri.parse(_fileUri(entry.key)) == uri) {
               setState(() {
-                _documents[active]?.dirty = true;
+                entry.value.dirty = true;
               });
-
-              return;
+              break;
             }
-
-            final matched = _documents.entries.firstWhere(
-              (e) =>
-                  Uri.parse(_fileUri(e.key)) == uri,
-              orElse: () => MapEntry('', doc),
-            );
-
-            if (matched.key.isNotEmpty) {
-              setState(() {
-                matched.value.dirty = true;
-              });
-            }
-          },
-        );
+          }
+        });
       },
     );
   }
 
   Widget _terminalPanel() {
-    final session = _terminal;
+    final TerminalSession? session = _terminal;
 
     return Container(
       color: const Color(0xFF111111),
@@ -808,7 +828,6 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
             child: Row(
               children: [
                 const SizedBox(width: 12),
-
                 const Text(
                   'TERMINAL',
                   style: TextStyle(
@@ -816,9 +835,7 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
                     letterSpacing: 1.0,
                   ),
                 ),
-
                 const Spacer(),
-
                 IconButton(
                   icon: const Icon(
                     Icons.delete_sweep_outlined,
@@ -826,10 +843,12 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
                   ),
                   onPressed: () {
                     session?.clear();
-                    setState(() {});
+
+                    if (mounted) {
+                      setState(() {});
+                    }
                   },
                 ),
-
                 IconButton(
                   icon: const Icon(
                     Icons.close,
@@ -840,7 +859,6 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
               ],
             ),
           ),
-
           Expanded(
             child: session == null
                 ? const Center(
@@ -856,7 +874,8 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
                           padding: const EdgeInsets.all(10),
                           itemCount: session.history.length,
                           itemBuilder: (_, i) {
-                            final h = session.history[i];
+                            final TerminalHistoryEntry history =
+                                session.history[i];
 
                             return Padding(
                               padding: const EdgeInsets.only(
@@ -867,28 +886,32 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
                                     CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    '\$ ${h.commandLine}',
+                                    '\$ ${history.commandLine}',
                                     style: const TextStyle(
-                                      color: Color(0xFF4FC3F7),
+                                      color:
+                                          Color(0xFF4FC3F7),
                                       fontFamily: 'monospace',
                                       fontSize: 12,
                                     ),
                                   ),
-
-                                  for (final line in h.output)
+                                  for (final line
+                                      in history.output)
                                     Text(
                                       line.text,
                                       style: TextStyle(
                                         color: line.isError
-                                            ? const Color(0xFFF48771)
-                                            : const Color(0xFFD4D4D4),
+                                            ? const Color(
+                                                0xFFF48771,
+                                              )
+                                            : const Color(
+                                                0xFFD4D4D4,
+                                              ),
                                         fontFamily: 'monospace',
                                         fontSize: 12,
                                       ),
                                     ),
-
                                   Text(
-                                    'exit ${h.exitCode ?? 0}',
+                                    'exit ${history.exitCode ?? 0}',
                                     style: const TextStyle(
                                       color: Color(0xFF666666),
                                       fontSize: 10,
@@ -900,7 +923,6 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
                           },
                         ),
                       ),
-
                       Padding(
                         padding: const EdgeInsets.fromLTRB(
                           10,
@@ -917,10 +939,10 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
                                 fontFamily: 'monospace',
                               ),
                             ),
-
                             Expanded(
                               child: TextField(
-                                controller: _terminalController,
+                                controller:
+                                    _terminalController,
                                 onSubmitted: (_) =>
                                     _runTerminalCommand(),
                                 style: const TextStyle(
@@ -934,13 +956,13 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
                                 ),
                               ),
                             ),
-
                             IconButton(
                               icon: const Icon(
                                 Icons.send,
                                 size: 18,
                               ),
-                              onPressed: _runTerminalCommand,
+                              onPressed:
+                                  _runTerminalCommand,
                             ),
                           ],
                         ),
@@ -966,18 +988,14 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
             Icons.code,
             size: 12,
           ),
-
           const SizedBox(width: 6),
-
           const Text(
             'FLDE',
             style: TextStyle(
               fontSize: 10,
             ),
           ),
-
           const Spacer(),
-
           Text(
             _activePath == null
                 ? 'No file'
@@ -988,9 +1006,7 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
               fontSize: 10,
             ),
           ),
-
           const SizedBox(width: 12),
-
           const Text(
             'UTF-8',
             style: TextStyle(
@@ -1007,9 +1023,7 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
       _terminalVisible = true;
     });
 
-    await _terminal?.execute(
-      'flutter run',
-    );
+    await _terminal?.execute('flutter run');
 
     if (mounted) {
       setState(() {});
@@ -1038,44 +1052,31 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
     switch (p.extension(path).toLowerCase()) {
       case '.dart':
         return MonacoLanguage.dart;
-
       case '.js':
         return MonacoLanguage.javascript;
-
       case '.ts':
         return MonacoLanguage.typescript;
-
       case '.json':
         return MonacoLanguage.json;
-
       case '.yaml':
       case '.yml':
         return MonacoLanguage.yaml;
-
       case '.md':
         return MonacoLanguage.markdown;
-
       case '.xml':
         return MonacoLanguage.xml;
-
       case '.html':
         return MonacoLanguage.html;
-
       case '.css':
         return MonacoLanguage.css;
-
       case '.java':
         return MonacoLanguage.java;
-
       case '.kt':
         return MonacoLanguage.kotlin;
-
       case '.gradle':
         return MonacoLanguage('groovy');
-
       case '.sh':
         return MonacoLanguage('shell');
-
       default:
         return MonacoLanguage.plaintext;
     }
@@ -1089,21 +1090,16 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
     switch (p.extension(path).toLowerCase()) {
       case '.dart':
         return Icons.code;
-
       case '.json':
         return Icons.data_object;
-
       case '.yaml':
       case '.yml':
         return Icons.settings_outlined;
-
       case '.md':
         return Icons.description_outlined;
-
       case '.java':
       case '.kt':
         return Icons.coffee;
-
       default:
         return Icons.insert_drive_file_outlined;
     }
