@@ -1074,9 +1074,9 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
       case '.kt':
         return MonacoLanguage.kotlin;
       case '.gradle':
-        return MonacoLanguage('groovy');
+        return const MonacoLanguage('groovy');
       case '.sh':
-        return MonacoLanguage('shell');
+        return const MonacoLanguage('shell');
       default:
         return MonacoLanguage.plaintext;
     }

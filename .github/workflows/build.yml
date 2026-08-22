@@ -32,7 +32,7 @@ jobs:
       - run: flutter pub get
 
       - name: Analyze (real errors are NOT hidden — a failure here must fail the build)
-        run: flutter analyze lib test
+        run: flutter analyze
 
       - name: Test (real errors are NOT hidden — a failure here must fail the build)
         run: flutter test
