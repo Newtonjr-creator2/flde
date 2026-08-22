@@ -19,6 +19,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   ToolchainStatus? _status;
+  bool _creatingProject = false;
 
   @override
   void initState() {
@@ -32,6 +33,21 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _createProject() async {
+    // Prevents a real crash: a fast double-tap previously pushed two
+    // overlapping dialogs sharing one Navigator, and the pops could
+    // resolve out of order — disposing the first dialog's
+    // TextEditingController while its TextField was still mounted
+    // underneath the second dialog ("used after being disposed").
+    if (_creatingProject) return;
+    setState(() => _creatingProject = true);
+    try {
+      await _runCreateProjectFlow();
+    } finally {
+      if (mounted) setState(() => _creatingProject = false);
+    }
+  }
+
+  Future<void> _runCreateProjectFlow() async {
     final controller = TextEditingController(text: 'my_app');
     final name = await showDialog<String>(
       context: context,
