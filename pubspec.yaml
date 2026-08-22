@@ -33,12 +33,10 @@ dependencies:
   # against the manifest (Phase 2 spec section 3/6).
   crypto: ^3.0.5
 
-  # Real syntax highlighting engine (not a hand-rolled fake tokenizer).
-  # Supports dart, yaml, json, xml, markdown, gradle(groovy), bash out of the box.
-  flutter_highlight: ^0.7.0
   # Monaco is the same editor engine used by VS Code, hosted in Android WebView.
+  # Replaces the old flutter_highlight-based plain-text editor — this is a
+  # real syntax-aware editor, not a hand-rolled tokenizer.
   flutter_monaco: ^3.4.3
-  highlight: ^0.7.0
 
 dev_dependencies:
   flutter_test:
