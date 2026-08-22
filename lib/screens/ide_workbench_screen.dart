@@ -189,19 +189,17 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
     if (monaco != null) {
       final Uri uri = Uri.parse(_fileUri(path));
 
-      // documentByUri returns null for any file that hasn't been opened
-      // in Monaco yet (every file except the very first one, which
-      // onReady already opens). Open it for real before activating it —
-      // passing a null document into activateDocument is both a
-      // null-safety error and, more importantly, the actual bug: without
-      // this, switching to a second Explorer file would silently do
-      // nothing.
-      var document = monaco.documentByUri(uri);
-      document ??= await monaco.openDocument(
-        text: _documents[path]!.text,
-        language: _documents[path]!.language,
-        uri: uri,
-      );
+      // Use a nullable variable to safely check whether the document
+      // already exists in Monaco.
+      MonacoDocument? document = monaco.documentByUri(uri);
+
+      if (document == null) {
+        document = await monaco.openDocument(
+          text: _documents[path]!.text,
+          language: _documents[path]!.language,
+          uri: uri,
+        );
+      }
 
       await monaco.activateDocument(document);
     }
@@ -1157,8 +1155,8 @@ class _KeyHint extends StatelessWidget {
       ),
       backgroundColor: const Color(0xFF252526),
       side: const BorderSide(
-  style: BorderStyle.none,
-),
+        style: BorderStyle.none,
+      ),
     );
   }
 }
