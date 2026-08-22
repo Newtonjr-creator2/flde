@@ -1144,7 +1144,9 @@ class _KeyHint extends StatelessWidget {
         ),
       ),
       backgroundColor: const Color(0xFF252526),
-      side: BorderSide.none,
+      side: const BorderSide(
+  style: BorderStyle.none,
+),
     );
   }
 }
