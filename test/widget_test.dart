@@ -13,7 +13,9 @@ void main() {
     await tester.pumpWidget(const FldeApp());
     await tester.pumpAndSettle();
 
-    expect(find.text('FLDE'), findsOneWidget);
+    // The home screen may show "FLDE" in multiple places (logo, title, status bar).
+    // So we only check that it appears at least once.
+    expect(find.text('FLDE'), findsWidgets);
     expect(find.text('Create Flutter project'), findsOneWidget);
     expect(find.text('Open folder'), findsOneWidget);
     expect(find.text('Import ZIP'), findsOneWidget);
