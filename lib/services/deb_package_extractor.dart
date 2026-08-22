@@ -34,7 +34,7 @@ class DebPackageExtractor {
     }
 
     if (data == null) throw const FormatException('Debian archive has no data.tar member');
-    final tar = _decodeTar(data!);
+    final tar = _decodeTar(data);
     await _extractTar(tar, destination);
   }
 
@@ -68,7 +68,7 @@ class DebPackageExtractor {
 
       if (entry.isSymbolicLink) {
         final target = entry.nameOfLinkedFile;
-        if (target == null || target.contains('..') || target.startsWith('/')) {
+        if (target.contains('..') || target.startsWith('/')) {
           throw const FormatException('Unsafe symlink in Debian package');
         }
         final file = File(out);

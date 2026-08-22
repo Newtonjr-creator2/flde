@@ -10,12 +10,12 @@ void main() {
   });
 
   testWidgets('App launches and shows the home screen', (WidgetTester tester) async {
-    await tester.pumpWidget(const RealBuzzingIdeApp());
+    await tester.pumpWidget(const FldeApp());
     await tester.pumpAndSettle();
 
-    expect(find.text('RealBuzzingIdentifier'), findsOneWidget);
-    expect(find.text('Create Flutter/Dart Project'), findsOneWidget);
-    expect(find.text('Open Existing Project'), findsOneWidget);
-    expect(find.text('Import Project from ZIP'), findsOneWidget);
+    expect(find.text('FLDE'), findsOneWidget);
+    expect(find.text('Create Flutter project'), findsOneWidget);
+    expect(find.text('Open folder'), findsOneWidget);
+    expect(find.text('Import ZIP'), findsOneWidget);
   });
 }

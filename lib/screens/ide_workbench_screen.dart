@@ -32,7 +32,7 @@ class _OpenDocument {
   final MonacoLanguage language;
   bool dirty;
 
-  _OpenDocument({required this.path, required this.text, required this.language, this.dirty = false});
+  _OpenDocument({required this.path, required this.text, required this.language});
 }
 
 class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
@@ -325,6 +325,7 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
           const Icon(Icons.code, size: 18, color: Color(0xFF4FC3F7)),
           const SizedBox(width: 8),
           Expanded(child: Text(p.basename(widget.rootPath), style: const TextStyle(fontSize: 13))),
+          IconButton(icon: const Icon(Icons.save_outlined, size: 19), tooltip: 'Save', onPressed: _saveActive),
           IconButton(icon: const Icon(Icons.play_arrow, size: 20), tooltip: 'Run', onPressed: _runFlutter),
           IconButton(icon: const Icon(Icons.build_outlined, size: 19), tooltip: 'Build APK', onPressed: _buildApk),
           IconButton(icon: const Icon(Icons.terminal, size: 19), tooltip: 'Terminal', onPressed: _toggleTerminal),
@@ -354,7 +355,7 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
               padding: const EdgeInsets.only(left: 10),
               decoration: BoxDecoration(
                 color: active ? const Color(0xFF1E1E1E) : const Color(0xFF181818),
-                border: Border(right: BorderSide(color: Colors.black.withOpacity(.4))),
+                border: Border(right: BorderSide(color: Colors.black.withValues(alpha: .4))),
               ),
               child: Row(
                 children: [
@@ -387,7 +388,7 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
             const SizedBox(height: 6),
             const Text('Open a file from Explorer', style: TextStyle(color: Color(0xFF777777))),
             const SizedBox(height: 18),
-            Wrap(
+            const Wrap(
               spacing: 8,
               children: [
                 _KeyHint('Ctrl+P', 'Quick Open'),
@@ -421,15 +422,17 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
         controller.onContentChanged.listen((event) async {
           if (!mounted) return;
           final active = _activePath;
-          if (active == event.documentUri.toFilePath()) {
+          final uri = event.documentUri;
+          if (uri == null) return;
+          if (active != null && Uri.parse(_fileUri(active)) == uri) {
             setState(() => _documents[active]?.dirty = true);
-          } else {
-            final matched = _documents.entries.firstWhere(
-              (e) => Uri.parse(_fileUri(e.key)) == event.documentUri,
-              orElse: () => MapEntry('', doc),
-            );
-            if (matched.key.isNotEmpty) setState(() => matched.value.dirty = true);
+            return;
           }
+          final matched = _documents.entries.firstWhere(
+            (e) => Uri.parse(_fileUri(e.key)) == uri,
+            orElse: () => MapEntry('', doc),
+          );
+          if (matched.key.isNotEmpty) setState(() => matched.value.dirty = true);
         });
       },
     );
@@ -553,7 +556,7 @@ class _IdeWorkbenchScreenState extends State<IdeWorkbenchScreen> {
       case '.css': return MonacoLanguage.css;
       case '.java': return MonacoLanguage.java;
       case '.kt': return MonacoLanguage.kotlin;
-      case '.gradle': return MonacoLanguage.groovy;
+      case '.gradle': return MonacoLanguage('groovy');
       case '.sh': return MonacoLanguage('shell');
       default: return MonacoLanguage.plaintext;
     }

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import '../core/runtime/environment_manager.dart';
 import '../core/runtime/runtime_environment.dart';
+import '../core/runtime/process_executor.dart';
 
 class TerminalHistoryEntry {
   final String commandLine;

@@ -170,11 +170,11 @@ class EnvironmentManager {
       ].join(':');
     }
 
-    final libraryDirs = <String>[storage.runtimeDir.path + '/lib'];
+    final libraryDirs = <String>[p.join(storage.runtimeDir.path, 'lib')];
     for (final kind in ToolchainKind.values) {
       final resolved = await resolve(kind);
       if (resolved?.installRoot != null) {
-        libraryDirs.add(p.join(resolved!.installRoot!, 'lib'));
+        libraryDirs.add(p.join(resolved.installRoot!, 'lib'));
         libraryDirs.add(p.join(resolved.installRoot!, 'libexec'));
         if (kind == ToolchainKind.java) {
           libraryDirs.addAll([
