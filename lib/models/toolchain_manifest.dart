@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/services.dart' show rootBundle;
+
 import 'toolchain_info.dart';
 
 /// Describes a downloadable toolchain release. This is a data contract,
@@ -22,6 +24,8 @@ class ToolchainManifestEntry {
   final List<ToolchainKind> dependencies;
   final String? minimumFldeVersion;
   final RuntimeRequirements? runtimeRequirements;
+  final String installerType;
+  final String? notes;
 
   const ToolchainManifestEntry({
     required this.kind,
@@ -35,6 +39,8 @@ class ToolchainManifestEntry {
     this.dependencies = const [],
     this.minimumFldeVersion,
     this.runtimeRequirements,
+    this.installerType = 'archive',
+    this.notes,
   });
 
   /// True only when this entry actually has somewhere to download from.
@@ -60,6 +66,8 @@ class ToolchainManifestEntry {
       runtimeRequirements: json['runtimeRequirements'] != null
           ? RuntimeRequirements.fromJson(json['runtimeRequirements'] as Map<String, dynamic>)
           : null,
+      installerType: json['installerType'] as String? ?? 'archive',
+      notes: json['notes'] as String?,
     );
   }
 
@@ -75,6 +83,8 @@ class ToolchainManifestEntry {
         'dependencies': dependencies.map((d) => d.name).toList(),
         if (minimumFldeVersion != null) 'minimumFldeVersion': minimumFldeVersion,
         if (runtimeRequirements != null) 'runtimeRequirements': runtimeRequirements!.toJson(),
+        'installerType': installerType,
+        if (notes != null) 'notes': notes,
       };
 }
 
@@ -139,9 +149,27 @@ class ToolchainManifestLoader {
 
   Future<void> ensureDefaultManifestExists() async {
     final file = File(manifestFilePath);
-    if (await file.exists()) return;
     await file.parent.create(recursive: true);
-    // Ships empty. No invented URLs. See class doc above.
+    var needsSeed = !await file.exists();
+    if (!needsSeed) {
+      try {
+        final decoded = jsonDecode(await file.readAsString());
+        needsSeed = decoded is List && decoded.isEmpty;
+      } catch (_) {
+        needsSeed = true;
+      }
+    }
+    if (!needsSeed) return;
+    try {
+      final bundled = await rootBundle.loadString('assets/toolchains/manifest.json');
+      final decoded = jsonDecode(bundled);
+      if (decoded is List) {
+        await file.writeAsString(jsonEncode(decoded));
+        return;
+      }
+    } catch (_) {
+      // Fail closed if the bundle is unavailable.
+    }
     await file.writeAsString(jsonEncode(<Map<String, dynamic>>[]));
   }
 }

@@ -6,6 +6,7 @@ import 'package:path/path.dart' as p;
 
 import '../core/storage/storage_service.dart';
 import '../models/toolchain_manifest.dart';
+import 'deb_package_extractor.dart';
 
 enum DownloadPhase { downloading, verifying, extracting, done, failed, cancelled }
 
@@ -123,6 +124,7 @@ class ToolchainDownloader {
     if (url.endsWith('.tar.gz') || url.endsWith('.tgz')) return '.tar.gz';
     if (url.endsWith('.tar.xz')) return '.tar.xz';
     if (url.endsWith('.zip')) return '.zip';
+    if (url.endsWith('.deb')) return '.deb';
     return p.extension(Uri.parse(url).path);
   }
 
@@ -139,6 +141,9 @@ class ToolchainDownloader {
       archive = TarDecoder().decodeBytes(tarBytes);
     } else if (name.endsWith('.tar')) {
       archive = TarDecoder().decodeBytes(bytes);
+    } else if (name.endsWith('.deb')) {
+      await DebPackageExtractor().extract(archiveFile, destination);
+      return;
     } else {
       throw UnsupportedError('Unsupported archive format for $name (only .zip/.tar/.tar.gz supported)');
     }

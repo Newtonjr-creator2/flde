@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import '../core/runtime/environment_manager.dart';
-import '../core/runtime/process_executor.dart';
 import '../core/runtime/runtime_environment.dart';
 
 class TerminalHistoryEntry {
@@ -40,14 +39,31 @@ class TerminalSession {
 
   Future<void> execute(String commandLine) async {
     if (isRunning) return;
-    final parts = _splitCommand(commandLine);
-    if (parts.isEmpty) return;
-    final executable = parts.first;
-    final args = parts.skip(1).toList();
+    final trimmed = commandLine.trim();
+    if (trimmed.isEmpty) return;
 
-    if (executable == 'cd') {
-      _changeDirectory(args.isNotEmpty ? args.first : '~');
+    // `cd` changes the persistent session cwd because a child shell cannot
+    // mutate Dart's parent process cwd. Everything else is executed through
+    // a real Android shell so pipes, redirects, quoting, &&, environment
+    // expansion, and scripts behave like a terminal instead of a visual
+    // command parser. Managed ELF commands are exposed through FLDE shell
+    // wrappers that invoke /system/bin/linker64.
+    if (trimmed == 'cd' || trimmed.startsWith('cd ')) {
+      final target = trimmed.length <= 2 ? '~' : trimmed.substring(3).trim();
+      _changeDirectory(target);
       final entry = TerminalHistoryEntry(commandLine: commandLine, output: [], exitCode: 0);
+      history.add(entry);
+      _outputController.add(entry);
+      return;
+    }
+
+    final shell = await runtime.resolveShell();
+    if (shell == null) {
+      final entry = TerminalHistoryEntry(
+        commandLine: commandLine,
+        output: [ProcessOutputLine('FLDE: no shell available', isError: true)],
+        exitCode: -1,
+      );
       history.add(entry);
       _outputController.add(entry);
       return;
@@ -57,8 +73,8 @@ class TerminalSession {
     final collected = <ProcessOutputLine>[];
     try {
       final running = await runtime.start(
-        executable,
-        args,
+        shell,
+        ['-c', trimmed],
         workingDirectory: workingDirectory,
         environment: env,
       );
@@ -77,7 +93,7 @@ class TerminalSession {
     } catch (e) {
       final entry = TerminalHistoryEntry(
         commandLine: commandLine,
-        output: [ProcessOutputLine('$executable: command not found or failed to start ($e)', isError: true)],
+        output: [ProcessOutputLine('$shell: failed to start command ($e)', isError: true)],
         exitCode: -1,
       );
       history.add(entry);
@@ -106,19 +122,6 @@ class TerminalSession {
     workingDirectory = target.startsWith('/')
         ? target
         : '$workingDirectory/$target'.replaceAll(RegExp(r'/+'), '/');
-  }
-
-  List<String> _splitCommand(String input) {
-    // Minimal real shell-word splitting (handles quoted segments); this is
-    // not a shell — no globbing, no pipes, no env expansion, per spec
-    // section 9's "must NOT merely emulate a shell visually" — we run the
-    // exact binary named, nothing more.
-    final regex = RegExp('[^\\s"\']+|"([^"]*)"|\'([^\']*)\'');
-    return regex
-        .allMatches(input.trim())
-        .map((m) => m.group(1) ?? m.group(2) ?? m.group(0)!)
-        .where((s) => s.isNotEmpty)
-        .toList();
   }
 }
 

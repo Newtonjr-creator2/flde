@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import '../core/runtime/environment_manager.dart';
 import '../core/runtime/runtime_environment.dart';
 import '../models/toolchain_info.dart';
@@ -69,18 +71,41 @@ class ToolchainValidator {
     for (final entry in known.entries) {
       results[entry.key] = await validate(entry.key, entry.value);
     }
-    // Android SDK isn't a single binary — validated separately by checking
-    // for required directories/files, per spec section 6. Phase 2 reports
-    // it honestly as unverified rather than guessing.
-    results[ToolchainKind.androidSdk] = ToolchainInfo(
+    results[ToolchainKind.androidSdk] = await _validateAndroidSdk();
+    return results;
+  }
+
+  Future<ToolchainInfo> _validateAndroidSdk() async {
+    final base = environment.storage.toolchainDir('android-sdk');
+    if (!await base.exists()) {
+      return ToolchainInfo.unknown(ToolchainKind.androidSdk, 'Android SDK');
+    }
+    Directory? sdk;
+    final direct = Directory('${base.path}/opt/android-sdk');
+    if (await direct.exists()) sdk = direct;
+    if (sdk == null) {
+      final versions = await base.list().where((e) => e is Directory).toList();
+      versions.sort((a, b) => b.statSync().modified.compareTo(a.statSync().modified));
+      for (final version in versions) {
+        final candidate = Directory('${version.path}/opt/android-sdk');
+        if (await candidate.exists()) { sdk = candidate; break; }
+      }
+    }
+    if (sdk == null) return ToolchainInfo.unknown(ToolchainKind.androidSdk, 'Android SDK');
+    final buildTools = Directory('${sdk.path}/build-tools');
+    final platforms = Directory('${sdk.path}/platforms');
+    final hasTools = await buildTools.exists();
+    final hasPlatforms = await platforms.exists();
+    return ToolchainInfo(
       kind: ToolchainKind.androidSdk,
       displayName: 'Android SDK',
-      origin: ToolchainOrigin.notInstalled,
-      state: ToolchainInstallState.notInstalled,
-      lastError: 'Android SDK directory validation not yet implemented in Phase 2',
+      origin: ToolchainOrigin.flde,
+      state: hasTools && hasPlatforms ? ToolchainInstallState.installed : ToolchainInstallState.failed,
+      version: hasTools ? 'SDK root verified' : null,
+      installPath: sdk.path,
+      lastError: hasTools && hasPlatforms ? null : 'SDK root exists but build-tools/platforms are incomplete',
       lastChecked: DateTime.now(),
     );
-    return results;
   }
 
   List<String> _versionArgs(ToolchainKind kind) {

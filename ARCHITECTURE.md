@@ -210,3 +210,27 @@ untrusted package sources.
 - **NOT IMPLEMENTED:** complete Termux-compatible userspace, package
   repository, or all six development toolchains.
 
+
+## 2026-08 Android runtime/workbench direction
+
+The physical-device runtime probe established that FLDE-owned ARM64 ELF files can be executed from app-managed storage when Android's `/system/bin/linker64` is the process executable and the FLDE ELF is passed as the linker target. Direct `execve` of the same private file remains denied on the tested device.
+
+FLDE therefore uses a Termux-style Android-bionic userspace model without requiring PRoot or a VM:
+
+- managed prefix under FLDE application storage;
+- `/system/bin/linker64` for managed ELF launch;
+- generated shell launchers in `runtime/bin/` so `/system/bin/sh -c` can resolve managed commands without direct-exec of the private ELF;
+- `LD_LIBRARY_PATH` pointing at FLDE-managed libraries;
+- rewritten Termux wrapper scripts whose original `/data/data/com.termux/files/usr` prefix would otherwise point at another application's sandbox;
+- real shell semantics for the integrated terminal;
+- verified, checksummed package manifests rather than arbitrary Linux desktop binaries.
+
+### Flutter host compatibility
+
+The official Flutter SDK documentation describes the SDK and CLI, but the official Linux host SDK is not an Android-bionic host distribution. FLDE must therefore use an Android-bionic ARM64 Flutter build (or build one itself) rather than downloading a normal Linux/glibc archive and hoping it executes. The current manifest references a known ARM64 Termux-compatible Flutter build and a Termux-compatible Android SDK package, both with pinned SHA-256 values. These sources are treated as bootstrap inputs, not as proof of successful FLDE installation; physical-device validation remains authoritative.
+
+The APK intentionally does not bundle the full Flutter + Android SDK + NDK stack. That stack is measured in hundreds of megabytes to multiple gigabytes and includes components with their own licensing/distribution conditions. FLDE downloads the selected packages after installation, verifies them, adapts their Termux prefix to FLDE's managed prefix, and then validates the resulting commands before marking a toolchain installed.
+
+### Editor workbench
+
+The main project screen is a mobile VS-Code-style workbench using Monaco Editor (the editor engine used by VS Code) inside Android WebView. The workbench contains an activity bar, Explorer, tabs, Monaco editor, integrated terminal, run/build actions, and status bar. FLDE branding and mobile layout remain distinct from Microsoft's product UI.

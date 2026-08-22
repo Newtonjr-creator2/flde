@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 
 import '../services/file_service.dart';
-import 'editor_screen.dart';
+import 'ide_workbench_screen.dart';
 
 class ExplorerScreen extends StatefulWidget {
   final String rootPath;
@@ -37,15 +37,9 @@ class _ExplorerScreenState extends State<ExplorerScreen> {
 
   void _open(FileSystemEntity entity) {
     if (entity is Directory) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => ExplorerScreen(rootPath: entity.path)),
-      );
+      Navigator.push(context, MaterialPageRoute(builder: (_) => IdeWorkbenchScreen(rootPath: entity.path)));
     } else if (entity is File) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => EditorScreen(filePath: entity.path)),
-      );
+      Navigator.push(context, MaterialPageRoute(builder: (_) => IdeWorkbenchScreen(rootPath: widget.rootPath)));
     }
   }
 

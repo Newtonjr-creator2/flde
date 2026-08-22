@@ -55,6 +55,28 @@ class EnvironmentManager {
       }
     }
 
+    // The Android-compatible Flutter SDK owns its Dart SDK. Keep Dart as a
+    // logical toolchain alias so `dart` becomes available immediately after
+    // Flutter installation without downloading a second incompatible Linux
+    // Dart distribution.
+    if (kind == ToolchainKind.dart) {
+      final flutterDir = storage.toolchainDir('flutter');
+      if (await flutterDir.exists()) {
+        final versions = await flutterDir.list().where((e) => e is Directory).toList();
+        versions.sort((a, b) => b.statSync().modified.compareTo(a.statSync().modified));
+        for (final version in versions) {
+          final candidate = File(p.join(version.path, 'bin', 'dart'));
+          if (await candidate.exists()) {
+            return ResolvedExecutable(path: candidate.path, origin: ToolchainOrigin.flde, installRoot: version.path);
+          }
+          final nested = File(p.join(version.path, 'opt', 'flutter', 'bin', 'dart'));
+          if (await nested.exists()) {
+            return ResolvedExecutable(path: nested.path, origin: ToolchainOrigin.flde, installRoot: version.path);
+          }
+        }
+      }
+    }
+
     final systemCommand = _systemCommand[kind];
     if (systemCommand != null) {
       final systemPath = await _which(systemCommand);
@@ -129,27 +151,109 @@ class EnvironmentManager {
     env['FLDE_RUNTIME'] = storage.runtimeDir.path;
     env['PUB_CACHE'] = storage.pubCacheDir.path;
     env['GRADLE_USER_HOME'] = storage.gradleCacheDir.path;
+    env['PATH'] = [storage.runtimeBinDir.path, env['PATH']!].join(':');
 
     final java = await resolve(ToolchainKind.java);
     if (java != null && java.origin == ToolchainOrigin.flde && java.installRoot != null) {
       env['JAVA_HOME'] = java.installRoot!;
     }
 
-    final androidSdkDir = storage.toolchainDir('android-sdk');
-    bool androidSdkHasContent = false;
-    if (await androidSdkDir.exists()) {
-      try {
-        androidSdkHasContent = await androidSdkDir.list().isEmpty.then((empty) => !empty);
-      } catch (_) {
-        androidSdkHasContent = false;
+    final androidSdkRoot = await _resolveAndroidSdkRoot();
+    if (androidSdkRoot != null) {
+      env['ANDROID_HOME'] = androidSdkRoot;
+      env['ANDROID_SDK_ROOT'] = androidSdkRoot;
+      env['PATH'] = [
+        env['PATH']!,
+        p.join(androidSdkRoot, 'platform-tools'),
+        p.join(androidSdkRoot, 'cmdline-tools', 'latest', 'bin'),
+        p.join(androidSdkRoot, 'build-tools', '35.0.0'),
+      ].join(':');
+    }
+
+    final libraryDirs = <String>[storage.runtimeDir.path + '/lib'];
+    for (final kind in ToolchainKind.values) {
+      final resolved = await resolve(kind);
+      if (resolved?.installRoot != null) {
+        libraryDirs.add(p.join(resolved!.installRoot!, 'lib'));
+        libraryDirs.add(p.join(resolved.installRoot!, 'libexec'));
+        if (kind == ToolchainKind.java) {
+          libraryDirs.addAll([
+            p.join(resolved.installRoot!, 'lib', 'jvm', 'java-17-openjdk', 'lib'),
+            p.join(resolved.installRoot!, 'lib', 'jvm', 'java-21-openjdk', 'lib'),
+          ]);
+        }
       }
     }
-    if (androidSdkHasContent) {
-      env['ANDROID_HOME'] = androidSdkDir.path;
-      env['ANDROID_SDK_ROOT'] = androidSdkDir.path;
+    await _ensureManagedLaunchers();
+    env['LD_LIBRARY_PATH'] = libraryDirs.where((d) => Directory(d).existsSync()).join(':');
+
+    final flutter = await resolve(ToolchainKind.flutter);
+    if (flutter?.installRoot != null) {
+      // Some Termux-compatible Flutter wrappers are parameterized by PREFIX.
+      // Point it at the FLDE-adapted package root rather than the original
+      // Termux application path.
+      env['PREFIX'] = flutter!.installRoot!;
+      env['TERMUX_PREFIX'] = flutter.installRoot!;
     }
 
     return env;
+  }
+
+  Future<void> _ensureManagedLaunchers() async {
+    final bin = storage.runtimeBinDir;
+    await bin.create(recursive: true);
+    final roots = <Directory>[];
+    for (final kind in [
+      ToolchainKind.dart,
+      ToolchainKind.flutter,
+      ToolchainKind.java,
+      ToolchainKind.git,
+      ToolchainKind.gradle,
+      ToolchainKind.androidSdk,
+    ]) {
+      final base = storage.toolchainDir(_toolchainFolderName(kind));
+      if (await base.exists()) roots.add(base);
+    }
+    for (final root in roots) {
+      await for (final entity in root.list(recursive: true, followLinks: false)) {
+        if (entity is! File) continue;
+        if (!await _isElf(entity)) continue;
+        final name = p.basename(entity.path);
+        if (name.isEmpty || name == 'ld.so') continue;
+        final wrapper = File(p.join(bin.path, name));
+        final target = entity.path.replaceAll("'", "'\"'\"'");
+        final script = "#!/system/bin/sh\nexec /system/bin/linker64 '$target' \"\$@\"\n";
+        try {
+          await wrapper.writeAsString(script);
+          await Process.run('chmod', ['+x', wrapper.path]);
+        } catch (_) {
+          // A launcher is an optimization; the direct runtime path remains.
+        }
+      }
+    }
+  }
+
+  Future<bool> _isElf(File file) async {
+    try {
+      final bytes = await file.openRead(0, 4).fold<List<int>>(<int>[], (a, b) => a..addAll(b));
+      return bytes.length == 4 && bytes[0] == 0x7f && bytes[1] == 0x45 && bytes[2] == 0x4c && bytes[3] == 0x46;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<String?> _resolveAndroidSdkRoot() async {
+    final base = storage.toolchainDir('android-sdk');
+    if (!await base.exists()) return null;
+    final direct = Directory(p.join(base.path, 'opt', 'android-sdk'));
+    if (await direct.exists()) return direct.path;
+    final versions = await base.list().where((e) => e is Directory).toList();
+    versions.sort((a, b) => b.statSync().modified.compareTo(a.statSync().modified));
+    for (final version in versions) {
+      final candidate = Directory(p.join(version.path, 'opt', 'android-sdk'));
+      if (await candidate.exists()) return candidate.path;
+    }
+    return null;
   }
 
   /// Sets FLDE_PROJECT for a specific execution context (a project run,

@@ -1,8 +1,8 @@
 
 name: real_buzzing_identifier
-description: FLDE — Mobile-first Flutter/Dart IDE for Android — Phase 2B (runtime abstraction, native execution experiment)
+description: FLDE — Mobile-first Flutter/Dart IDE for Android — Android workbench + system-linker runtime + toolchain bootstrap
 publish_to: 'none'
-version: 0.3.0+3
+version: 0.4.0+4
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
@@ -36,6 +36,8 @@ dependencies:
   # Real syntax highlighting engine (not a hand-rolled fake tokenizer).
   # Supports dart, yaml, json, xml, markdown, gradle(groovy), bash out of the box.
   flutter_highlight: ^0.7.0
+  # Monaco is the same editor engine used by VS Code, hosted in Android WebView.
+  flutter_monaco: ^3.4.3
   highlight: ^0.7.0
 
 dev_dependencies:
@@ -50,3 +52,4 @@ flutter:
   # the ELF into its managed filesystem at runtime.
   assets:
     - assets/runtime/runtime_probe_arm64-v8a
+    - assets/toolchains/manifest.json
